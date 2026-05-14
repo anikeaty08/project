@@ -49,25 +49,26 @@ Return only JSON:
 """
 
 
+def _extract_pdf_page_texts(data: bytes) -> list[str]:
+    doc = pymupdf.open(stream=data, filetype="pdf")
+    try:
+        return [page.get_text().strip() for page in doc]
+    finally:
+        doc.close()
+
+
 def _extract_pdf_text(data: bytes) -> str:
-    doc = pymupdf.open(stream=data, filetype="pdf")
-    try:
-        return "\n".join(page.get_text() for page in doc).strip()
-    finally:
-        doc.close()
+    return "\n".join(_extract_pdf_page_texts(data)).strip()
 
 
-def _pdf_pages_as_png_base64(data: bytes, max_pages: int) -> list[str]:
+def _pdf_page_as_png_base64(data: bytes, page_index: int) -> str:
     doc = pymupdf.open(stream=data, filetype="pdf")
-    urls: list[str] = []
     try:
-        for i in range(min(len(doc), max_pages)):
-            pix = doc[i].get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5))
-            b64 = base64.standard_b64encode(pix.tobytes("png")).decode("ascii")
-            urls.append(f"data:image/png;base64,{b64}")
+        pix = doc[page_index].get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5))
+        b64 = base64.standard_b64encode(pix.tobytes("png")).decode("ascii")
+        return f"data:image/png;base64,{b64}"
     finally:
         doc.close()
-    return urls
 
 
 def _extract_plain_text(data: bytes) -> str:
@@ -83,6 +84,40 @@ def _fallback_parse(filename: str, text: str) -> PrescriptionDocumentResult:
     )
 
 
+def _merge_page_parses(pages: list[PrescriptionDocumentResult], filename: str) -> PrescriptionDocumentResult:
+    if not pages:
+        return _fallback_parse(filename, "")
+
+    merged = PrescriptionDocumentResult(
+        confidence=max((p.confidence for p in pages), default=0.0),
+        provenance="page_extract",
+    )
+    seen_meds: set[tuple[str, str, str]] = set()
+    notes: list[str] = []
+    queries: list[str] = []
+    for idx, parsed in enumerate(pages, start=1):
+        if parsed.doctor and not merged.doctor:
+            merged.doctor = parsed.doctor
+        if parsed.date and not merged.date:
+            merged.date = parsed.date
+        for med in parsed.medications:
+            key = (med.name.lower(), med.strength.lower(), med.frequency.lower())
+            if key not in seen_meds:
+                seen_meds.add(key)
+                merged.medications.append(med)
+        note = parsed.raw_notes.strip()
+        if note:
+            notes.append(f"Page {idx}: {note[:1800]}")
+            merged.page_notes.append(f"Page {idx}: {note[:1000]}")
+        query = parsed.retrieval_query.strip()
+        if query:
+            queries.append(query)
+
+    merged.raw_notes = "\n".join(notes)[:8000]
+    merged.retrieval_query = " ".join(queries).strip()[:600] or filename
+    return merged
+
+
 def _flatten_for_embedding(parsed: PrescriptionDocumentResult) -> str:
     lines = [
         "Prescription / document upload:",
@@ -92,6 +127,8 @@ def _flatten_for_embedding(parsed: PrescriptionDocumentResult) -> str:
     ]
     for med in parsed.medications:
         lines.append(f"Medication: {med.name} | {med.strength} | {med.frequency}")
+    for page_note in parsed.page_notes:
+        lines.append(page_note)
     return "\n".join(lines).strip()
 
 
@@ -129,7 +166,37 @@ def run(filename: str, mime_type: str, file_bytes: bytes) -> dict[str, Any]:
     mime = (mime_type or "").split(";")[0].strip().lower()
     text = ""
     if mime == "application/pdf":
-        text = _extract_pdf_text(file_bytes)
+        page_texts = _extract_pdf_page_texts(file_bytes)
+        page_parses: list[PrescriptionDocumentResult] = []
+        vision_pages_used = 0
+        for index, page_text in enumerate(page_texts):
+            if len(page_text.strip()) >= settings.prescription_extraction_min_chars:
+                page_parses.append(
+                    PrescriptionDocumentResult(
+                        raw_notes=page_text[:3000],
+                        confidence=0.72,
+                        retrieval_query=page_text[:500],
+                        provenance="text_extract",
+                    )
+                )
+                continue
+            if vision_pages_used < settings.vision_pdf_max_pages:
+                image_url = _pdf_page_as_png_base64(file_bytes, index)
+                parsed_page = _vision_parse([image_url])
+                parsed_page.provenance = "vision"
+                page_parses.append(parsed_page)
+                vision_pages_used += 1
+            else:
+                page_parses.append(
+                    PrescriptionDocumentResult(
+                        raw_notes=f"Page {index + 1} had little extractable text and was not processed by vision due to page limit.",
+                        confidence=0.0,
+                        retrieval_query=filename,
+                        provenance="skipped_weak_page",
+                    )
+                )
+        parsed = _merge_page_parses(page_parses, filename)
+        return _normalize(parsed, filename)
     elif mime in ("text/plain", "text/markdown"):
         text = _extract_plain_text(file_bytes)
 
@@ -137,10 +204,7 @@ def run(filename: str, mime_type: str, file_bytes: bytes) -> dict[str, Any]:
     image_urls: list[str] = []
     provenance = "text_extract"
 
-    if mime == "application/pdf" and weak_text:
-        image_urls = _pdf_pages_as_png_base64(file_bytes, settings.vision_pdf_max_pages)
-        provenance = "vision"
-    elif mime.startswith("image/"):
+    if mime.startswith("image/"):
         b64 = base64.standard_b64encode(file_bytes).decode("ascii")
         image_urls = [f"data:{mime};base64,{b64}"]
         text = ""

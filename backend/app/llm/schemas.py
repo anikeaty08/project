@@ -27,6 +27,7 @@ class PrescriptionDocumentResult(BaseModel):
     retrieval_query: str = ""
     provenance: str = ""
     flat_text: str = ""
+    page_notes: list[str] = Field(default_factory=list)
 
 
 class PlantImageResult(BaseModel):
