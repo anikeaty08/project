@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -265,12 +265,13 @@ def get_upload_file(
     session_id: uuid.UUID,
     upload_id: uuid.UUID,
     token: str | None = Depends(owner_header),
+    owner_token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_owner_token(sess, token)
+    verify_owner_token(sess, token or owner_token)
     row = db.get(SessionUpload, upload_id)
     if row is None or row.session_id != session_id:
         raise HTTPException(status_code=404, detail="Upload not found")

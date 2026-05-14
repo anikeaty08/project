@@ -6,6 +6,13 @@ export function apiUrl(path) {
   return `${API_BASE}${path}`;
 }
 
+export function apiUrlWithOwner(path, ownerToken) {
+  const url = apiUrl(path);
+  if (!ownerToken || !url) return url;
+  const joiner = url.includes("?") ? "&" : "?";
+  return `${url}${joiner}owner_token=${encodeURIComponent(ownerToken)}`;
+}
+
 async function parseResponse(res) {
   const text = await res.text();
   let data;
@@ -24,9 +31,9 @@ async function parseResponse(res) {
   return data;
 }
 
-export async function getJson(path) {
+export async function getJson(path, extraHeaders = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...extraHeaders },
   });
   return parseResponse(res);
 }
@@ -40,10 +47,10 @@ export async function postJson(path, body, extraHeaders = {}) {
   return parseResponse(res);
 }
 
-export async function deleteJson(path) {
+export async function deleteJson(path, extraHeaders = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...extraHeaders },
   });
   return parseResponse(res);
 }
@@ -52,7 +59,7 @@ export async function deleteJson(path) {
  * @param {string} sessionId
  * @param {File[]} files
  */
-export async function postSessionUploads(sessionId, files, context = "") {
+export async function postSessionUploads(sessionId, files, context = "", extraHeaders = {}) {
   const fd = new FormData();
   fd.append("context", context || "");
   for (const f of files) {
@@ -60,6 +67,7 @@ export async function postSessionUploads(sessionId, files, context = "") {
   }
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/uploads`, {
     method: "POST",
+    headers: extraHeaders,
     body: fd,
   });
   return parseResponse(res);
