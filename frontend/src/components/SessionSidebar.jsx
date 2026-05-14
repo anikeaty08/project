@@ -41,7 +41,7 @@ export default function SessionSidebar({
                 onDelete?.(s.id);
               }}
             >
-              ×
+              x
             </button>
           </li>
         ))}
