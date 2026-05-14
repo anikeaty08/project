@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.config import settings
 from app.llm.tasks import (
-    is_prescription_related_message,
+    is_prescription_keyword_match,
     run_prescription_verify_agent,
     verify_result_to_prompt_block,
 )
@@ -17,7 +17,7 @@ def verification_unavailable_block(reason: str) -> str:
 
 class ChatVerificationService:
     def is_needed(self, user_content: str) -> bool:
-        return is_prescription_related_message(user_content)
+        return is_prescription_keyword_match(user_content)
 
     def verify(
         self,
