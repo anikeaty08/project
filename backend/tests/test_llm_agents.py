@@ -119,7 +119,7 @@ class TestSeparateAgents(unittest.TestCase):
                         self.assertNotIn(needle, text, f"{needle} found in {name}")
 
     def test_env_examples_do_not_contain_secret_looking_values(self) -> None:
-        for path in (ROOT / "frontend" / ".env.example", BACKEND / ".env.example"):
+        for path in (ROOT / "fronteend-1" / ".env.local.example", BACKEND / ".env.example"):
             text = path.read_text(encoding="utf-8", errors="ignore").lower()
             self.assertNotIn("secret key:", text)
             self.assertNotIn("access key:", text)

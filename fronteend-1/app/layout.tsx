@@ -33,13 +33,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider>
     <html lang="en">
       <body className={`${instrumentSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
-        {children}
-        <Analytics />
+        <ClerkProvider>
+          {children}
+          <Analytics />
+        </ClerkProvider>
       </body>
     </html>
-    </ClerkProvider>
   )
 }
