@@ -9,7 +9,10 @@ async function parseResponse(res) {
     data = { detail: text };
   }
   if (!res.ok) {
-    const msg = data.detail ?? res.statusText ?? "Request failed";
+    let msg = data.detail ?? res.statusText ?? "Request failed";
+    if (Array.isArray(msg)) {
+      msg = msg.map((e) => e.msg || JSON.stringify(e)).join("; ");
+    }
     throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
   return data;
@@ -27,6 +30,22 @@ export async function postJson(path, body, extraHeaders = {}) {
     method: "POST",
     headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
+  });
+  return parseResponse(res);
+}
+
+/**
+ * @param {string} sessionId
+ * @param {File[]} files
+ */
+export async function postSessionUploads(sessionId, files) {
+  const fd = new FormData();
+  for (const f of files) {
+    fd.append("files", f);
+  }
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/uploads`, {
+    method: "POST",
+    body: fd,
   });
   return parseResponse(res);
 }
