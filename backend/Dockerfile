@@ -8,7 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# PyTorch: install CPU-only wheels first so pip does not pull the multi-gigabyte NVIDIA CUDA stack.
+RUN pip install --no-cache-dir "torch>=2.2.0" --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/app /app/app
 
