@@ -16,8 +16,11 @@ from app.config import settings
 from app.db.session import get_db
 from app.models.chat import ChatMessage, ChatSession
 from app.models.session_upload import SessionUpload
+from app.services.auth import hash_owner_token, new_owner_token, owner_header, verify_owner_token
 from app.services.chat_turn import run_chat_turn
-from app.services.prescription_upload_service import save_and_process_upload
+from app.services.prescription_upload_service import save_upload_queued
+from app.services.upload_jobs import upload_job_runner
+from app.services.upload_storage import upload_file_url
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -30,6 +33,7 @@ class CreateSessionResponse(BaseModel):
     id: str
     title: str | None
     created_at: datetime
+    owner_token: str | None = None
 
 
 class SessionListItem(BaseModel):
@@ -62,6 +66,9 @@ class SessionUploadItem(BaseModel):
     session_id: str
     original_filename: str
     mime_type: str
+    status: str = "completed"
+    processing_error: str | None = None
+    trace_id: str | None = None
     url: str
     parse: dict
     verify: dict | None = None
@@ -81,17 +88,24 @@ class SessionChatResponse(BaseModel):
     retrieval_query: str
     user_message_id: str
     assistant_message_id: str
+    trace_id: str | None = None
     user_message: MessageItem | None = None
     assistant_message: MessageItem | None = None
 
 
 @router.post("/", response_model=CreateSessionResponse)
 def create_session(body: CreateSessionRequest, db: Session = Depends(get_db)):
-    s = ChatSession(title=body.title)
+    token = new_owner_token()
+    s = ChatSession(title=body.title, owner_token_hash=hash_owner_token(token))
     db.add(s)
     db.commit()
     db.refresh(s)
-    return CreateSessionResponse(id=str(s.id), title=s.title, created_at=s.created_at)
+    return CreateSessionResponse(
+        id=str(s.id),
+        title=s.title,
+        created_at=s.created_at,
+        owner_token=token,
+    )
 
 
 @router.get("/", response_model=list[SessionListItem])
@@ -114,10 +128,15 @@ def list_sessions(db: Session = Depends(get_db), limit: int = 50):
 
 
 @router.delete("/{session_id}", status_code=204)
-def delete_session(session_id: uuid.UUID, db: Session = Depends(get_db)):
+def delete_session(
+    session_id: uuid.UUID,
+    token: str | None = Depends(owner_header),
+    db: Session = Depends(get_db),
+):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    verify_owner_token(sess, token)
     db.delete(sess)
     db.commit()
     chroma_store.delete_by_session(str(session_id))
@@ -133,17 +152,21 @@ def delete_session(session_id: uuid.UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{session_id}/messages", response_model=list[MessageItem])
-def get_messages(session_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_messages(
+    session_id: uuid.UUID,
+    token: str | None = Depends(owner_header),
+    db: Session = Depends(get_db),
+):
+    sess = db.get(ChatSession, session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    verify_owner_token(sess, token)
     stmt = (
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
         .order_by(ChatMessage.created_at.asc())
     )
     rows = db.scalars(stmt).all()
-    if not rows:
-        exists = db.get(ChatSession, session_id)
-        if exists is None:
-            raise HTTPException(status_code=404, detail="Session not found")
     return [
         MessageItem(
             id=str(m.id),
@@ -161,8 +184,13 @@ def session_upload_files(
     session_id: uuid.UUID,
     files: list[UploadFile] = File(..., description="Prescription images or PDFs"),
     context: str = Form(default=""),
+    token: str | None = Depends(owner_header),
     db: Session = Depends(get_db),
 ):
+    sess = db.get(ChatSession, session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    verify_owner_token(sess, token)
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     results: list[SessionUploadItem] = []
@@ -171,14 +199,14 @@ def session_upload_files(
         if not raw:
             raise HTTPException(status_code=400, detail=f"Empty file: {f.filename}")
         try:
-            row = save_and_process_upload(
+            row = save_upload_queued(
                 db,
                 session_id,
                 f.filename or "upload.bin",
                 f.content_type or "application/octet-stream",
                 raw,
-                user_context=context,
             )
+            upload_job_runner.enqueue(row.id, context)
         except ValueError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
         results.append(
@@ -187,7 +215,10 @@ def session_upload_files(
                 session_id=str(row.session_id),
                 original_filename=row.original_filename,
                 mime_type=row.mime_type,
-                url=f"/sessions/{row.session_id}/uploads/{row.id}/file",
+                status=row.status,
+                processing_error=row.processing_error,
+                trace_id=row.trace_id,
+                url=upload_file_url(row),
                 parse=row.parse_result_json or {},
                 verify=row.verify_result_json,
                 created_at=row.created_at,
@@ -196,12 +227,50 @@ def session_upload_files(
     return results
 
 
+@router.get("/{session_id}/uploads", response_model=list[SessionUploadItem])
+def list_uploads(
+    session_id: uuid.UUID,
+    token: str | None = Depends(owner_header),
+    db: Session = Depends(get_db),
+):
+    sess = db.get(ChatSession, session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    verify_owner_token(sess, token)
+    rows = db.scalars(
+        select(SessionUpload)
+        .where(SessionUpload.session_id == session_id)
+        .order_by(SessionUpload.created_at.asc())
+    ).all()
+    return [
+        SessionUploadItem(
+            id=str(row.id),
+            session_id=str(row.session_id),
+            original_filename=row.original_filename,
+            mime_type=row.mime_type,
+            status=row.status,
+            processing_error=row.processing_error,
+            trace_id=row.trace_id,
+            url=upload_file_url(row),
+            parse=row.parse_result_json or {},
+            verify=row.verify_result_json,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+
+
 @router.get("/{session_id}/uploads/{upload_id}/file")
 def get_upload_file(
     session_id: uuid.UUID,
     upload_id: uuid.UUID,
+    token: str | None = Depends(owner_header),
     db: Session = Depends(get_db),
 ):
+    sess = db.get(ChatSession, session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    verify_owner_token(sess, token)
     row = db.get(SessionUpload, upload_id)
     if row is None or row.session_id != session_id:
         raise HTTPException(status_code=404, detail="Upload not found")
@@ -219,6 +288,7 @@ def get_upload_file(
 def session_chat(
     session_id: uuid.UUID,
     body: SessionChatRequest,
+    token: str | None = Depends(owner_header),
     db: Session = Depends(get_db),
 ):
     upload_uuid_list: list[uuid.UUID] | None = None
@@ -238,6 +308,7 @@ def session_chat(
             body.content,
             body.language,
             upload_ids=upload_uuid_list,
+            owner_token=token,
         )
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
@@ -247,6 +318,7 @@ def session_chat(
         retrieval_query=out["retrieval_query"],
         user_message_id=out["user_message_id"],
         assistant_message_id=out["assistant_message_id"],
+        trace_id=out.get("trace_id"),
         user_message=MessageItem(**out["user_message"]),
         assistant_message=MessageItem(**out["assistant_message"]),
     )
