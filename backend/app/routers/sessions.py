@@ -3,14 +3,16 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.chat import ChatMessage, ChatSession
+from app.models.session_upload import SessionUpload
 from app.services.chat_turn import run_chat_turn
+from app.services.prescription_upload_service import save_and_process_upload
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -47,6 +49,17 @@ class MessageItem(BaseModel):
 class SessionChatRequest(BaseModel):
     content: str = Field(min_length=1, max_length=32000)
     language: str | None = None
+    upload_ids: list[str] | None = None
+
+
+class SessionUploadItem(BaseModel):
+    id: str
+    session_id: str
+    original_filename: str
+    mime_type: str
+    parse: dict
+    verify: dict | None = None
+    created_at: datetime
 
 
 class SourceItem(BaseModel):
