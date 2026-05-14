@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     ingest_token: str = ""
 
     chroma_path: Path = Path("./chroma_db")
-    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # FastEmbed (ONNX) model id — see TextEmbedding.list_supported_models()
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L6-v2"
     data_dir: Path = _default_data_dir()
 
     chunk_size: int = 800
