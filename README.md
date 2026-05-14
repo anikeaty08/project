@@ -84,3 +84,12 @@ A shared secret so random clients cannot call **`POST /ingest/`** (re-indexing i
 ## Chroma batch limit
 
 Large ingests are **upserted in batches** (default 4500 vectors per request) to stay under Chroma’s internal batch cap (~5461). Tune `CHROMADB_UPSERT_BATCH_SIZE` in `backend/.env` if needed.
+
+## Prescription uploads and web verification
+
+The chat composer includes a **+** control to attach **PDFs** and **images** (PNG, JPEG, WebP) plus plain **text/markdown** files. On send, the UI uploads files to **`POST /sessions/{id}/uploads`**, then sends the message with **`upload_ids`** so the backend can merge upload-derived retrieval with the normal session query.
+
+- **Vision extraction**: weak PDF text (short or below `PRESCRIPTION_EXTRACTION_MIN_CHARS`) triggers OpenAI vision on rendered pages (`VISION_PDF_MAX_PAGES`). Set **`OPENAI_VISION_MODEL`** (e.g. `gpt-4o-mini`).
+- **Tavily**: optional **`TAVILY_API_KEY`**. When set, verification runs if the document parse looks weak and when the user’s message looks **prescription-related** (keywords plus a small JSON classifier). Searches use your **`TAVILY_TRUSTED_DOMAINS`** list plus a general web pass so non-allowlisted hits can appear only as **supplementary** context in the synthesis step.
+- **Docker**: Compose mounts named volume **`uploads_data`** at **`/app/uploads`** and sets **`UPLOAD_DIR=/app/uploads`**. Do not commit API keys.
+- **Limits**: default **`MAX_UPLOAD_MB`** is 20; allowed MIME types are enforced server-side. Uploads are capped per session (see `prescription_upload_service`). Virus scanning is out of scope.
