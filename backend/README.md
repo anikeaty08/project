@@ -32,7 +32,7 @@ Edit `backend/.env` (examples below target Docker DBs on localhost):
 .\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-If port **8000** is busy, pick another port and point `frontend/vite.config.js` at it.
+If port **8000** is busy, pick another port and set `NEXT_PUBLIC_API_BASE_URL` in `fronteend-1/.env.local`.
 
 ## Ingest (from `backend/`)
 
