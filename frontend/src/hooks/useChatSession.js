@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJson, postJson, postSessionUploads } from "../api/client.js";
+import { deleteJson, getJson, postJson, postSessionUploads } from "../api/client.js";
 
 const SESSION_KEY = "rag_chat_session_id";
 
@@ -90,6 +90,37 @@ export function useChatSession() {
     [loadMessages]
   );
 
+  const deleteSession = useCallback(
+    async (sid) => {
+      if (!sid) return;
+      setError("");
+      try {
+        await deleteJson(`/sessions/${sid}`);
+        const nextSessions = sessions.filter((s) => s.id !== sid);
+        setSessions(nextSessions);
+        if (sid === sessionId) {
+          localStorage.removeItem(SESSION_KEY);
+          if (nextSessions.length > 0) {
+            const nextId = nextSessions[0].id;
+            localStorage.setItem(SESSION_KEY, nextId);
+            setSessionId(nextId);
+            await loadMessages(nextId);
+          } else {
+            const created = await postJson("/sessions/", {});
+            localStorage.setItem(SESSION_KEY, created.id);
+            setSessionId(created.id);
+            setMessages([]);
+          }
+          setLastSources([]);
+        }
+        await refreshSessions();
+      } catch (e) {
+        setError(e.message || String(e));
+      }
+    },
+    [sessionId, sessions, loadMessages, refreshSessions]
+  );
+
   const sendMessage = useCallback(
     async (text, files = []) => {
       const list = Array.isArray(files) ? files : [];
@@ -160,6 +191,7 @@ export function useChatSession() {
     lastSources,
     newChat,
     openSession,
+    deleteSession,
     sendMessage,
     runIngest,
     refreshSessions,

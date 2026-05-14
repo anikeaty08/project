@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import InlineImageResults from "./InlineImageResults.jsx";
+import { apiUrl } from "../api/client.js";
 
 function formatTime(iso) {
   if (!iso) return "";
@@ -46,6 +47,34 @@ export default function MessageList({ messages, loading }) {
             </time>
           </header>
           <div className="bubble__body">{m.content}</div>
+          {Array.isArray(m.sources) && m.sources.some((s) => s.type === "attachment") ? (
+            <div className="bubble__attachments" aria-label="Attachments">
+              {m.sources
+                .filter((s) => s.type === "attachment")
+                .map((a) => (
+                  <a
+                    key={a.upload_id || a.url}
+                    className="bubble__attachment"
+                    href={apiUrl(a.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={a.filename}
+                  >
+                    {String(a.mime_type || "").startsWith("image/") ? (
+                      <img
+                        className="bubble__attachment-img"
+                        src={apiUrl(a.url)}
+                        alt={a.filename || "Uploaded image"}
+                      />
+                    ) : (
+                      <span className="bubble__attachment-doc">
+                        {a.filename || "Uploaded file"}
+                      </span>
+                    )}
+                  </a>
+                ))}
+            </div>
+          ) : null}
           {m.role === "assistant" ? (
             <InlineImageResults assistantText={m.content} />
           ) : null}

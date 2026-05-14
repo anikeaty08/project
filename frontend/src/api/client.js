@@ -1,5 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
+export function apiUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE}${path}`;
+}
+
 async function parseResponse(res) {
   const text = await res.text();
   let data;
@@ -30,6 +36,14 @@ export async function postJson(path, body, extraHeaders = {}) {
     method: "POST",
     headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
+  });
+  return parseResponse(res);
+}
+
+export async function deleteJson(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
   });
   return parseResponse(res);
 }

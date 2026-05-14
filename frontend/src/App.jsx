@@ -21,6 +21,7 @@ export default function App() {
     lastSources,
     newChat,
     openSession,
+    deleteSession,
     sendMessage,
     runIngest,
   } = useChatSession();
@@ -40,6 +41,7 @@ export default function App() {
         sessions={sessions}
         activeSessionId={sessionId}
         onSelect={openSession}
+        onDelete={deleteSession}
         onNew={newChat}
       />
       <div className="app-main">
