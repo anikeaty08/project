@@ -10,6 +10,7 @@ from app.memory import PostgresSummaryMemoryStore
 from app.llm import client as llm_client
 from app.llm.agent_base import has_required_prompt_sections
 from app.llm.agents import (
+    plant_image,
     prescription_document,
     prescription_intent,
     prescription_verify,
@@ -30,6 +31,7 @@ class TestSeparateAgents(unittest.TestCase):
         prompts = [
             session_query.PROMPT,
             rag_answer.PROMPT,
+            plant_image.PROMPT,
             prescription_intent.PROMPT,
             prescription_document.PROMPT,
             prescription_verify.PROMPT,
