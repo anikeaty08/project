@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.chat import ChatMessage, ChatSession
-from app.models.session_upload import SessionUpload
 from app.services.chat_turn import run_chat_turn
 from app.services.prescription_upload_service import save_and_process_upload
 
