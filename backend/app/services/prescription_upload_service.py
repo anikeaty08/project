@@ -83,11 +83,13 @@ def save_and_process_upload(
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    n_uploads = (
-        db.query(SessionUpload)
-        .filter(SessionUpload.session_id == session_id)
-        .count()
-    )
+    from sqlalchemy import func, select
+
+    n_uploads = db.scalar(
+        select(func.count()).select_from(SessionUpload).where(
+            SessionUpload.session_id == session_id
+        )
+    ) or 0
     if n_uploads >= _MAX_UPLOADS_PER_SESSION:
         raise HTTPException(status_code=429, detail="Too many uploads for this session")
 
@@ -102,29 +104,18 @@ def save_and_process_upload(
 
     parse = run_prescription_document_agent(safe_name, mime, file_bytes)
     verify: dict[str, Any] | None = None
-    if is_parse_weak(parse) or not parse.get("medications"):
-        if settings.tavily_api_key:
-            try:
-                q = str(parse.get("retrieval_query") or parse.get("raw_notes") or safe_name)[
-                    :400
-                ]
-                verify = run_prescription_verify_agent(
-                    search_query=q,
-                    context_from_document=str(parse.get("flat_text") or "")[:4000],
-                )
-            except Exception:
-                verify = {"error": "verify_failed", "limitations": "Tavily or synthesis failed."}
-        else:
-            verify = None
-    else:
-        if settings.tavily_api_key:
-            try:
-                verify = run_prescription_verify_agent(
-                    search_query=str(parse.get("retrieval_query") or "")[:400],
-                    context_from_document=str(parse.get("flat_text") or "")[:4000],
-                )
-            except Exception:
-                verify = None
+    if is_parse_weak(parse) and settings.tavily_api_key:
+        try:
+            q = str(parse.get("retrieval_query") or parse.get("raw_notes") or safe_name)[:400]
+            verify = run_prescription_verify_agent(
+                search_query=q,
+                context_from_document=str(parse.get("flat_text") or "")[:4000],
+            )
+        except Exception:
+            verify = {
+                "error": "verify_failed",
+                "limitations": "Tavily or synthesis failed.",
+            }
 
     row = SessionUpload(
         id=upload_id,
