@@ -1,125 +1,229 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { SignedIn, SignedOut, SignInButton, useAuth } from "@clerk/nextjs";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
-import { ChatMessages, type ChatMessage } from "@/components/chat/chat-messages";
+import { ChatMessages, fromApiMessage, type ChatMessage } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
+import {
+  deleteJson,
+  getJson,
+  postJson,
+  uploadFiles,
+  type MessageItem,
+  type SessionItem,
+} from "@/lib/rag-api";
 
-// Dynamic import for Three.js to avoid SSR issues
 const SandParticles = dynamic(
-  () =>
-    import("@/components/chat/sand-particles").then((mod) => mod.SandParticles),
+  () => import("@/components/chat/sand-particles").then((mod) => mod.SandParticles),
   { ssr: false }
 );
 
-// Dummy AI responses
-const aiResponses: Record<string, string> = {
-  "Analyze my Dosha":
-    "Based on Ayurvedic principles, your Dosha (constitution) is determined by your physical, mental, and emotional characteristics.\n\nTo analyze your Dosha, I'd consider factors like:\n\n🔥 **Pitta** — Medium build, sharp intellect, strong digestion, prone to inflammation\n💨 **Vata** — Light frame, creative mind, variable digestion, prone to anxiety\n🌊 **Kapha** — Sturdy build, calm nature, slow digestion, prone to weight gain\n\nMost people are a combination of two doshas. Would you like me to ask you some specific questions to determine your Prakriti (birth constitution)?",
-  "Tell me about Ashwagandha":
-    "🌿 **Ashwagandha** (Withania somnifera)\n\nAlso known as Indian Ginseng or Winter Cherry, Ashwagandha is one of the most powerful herbs in Ayurveda.\n\n**Key Benefits:**\n• Reduces cortisol levels and manages stress\n• Improves memory and cognitive function\n• Boosts immunity and physical endurance\n• Supports thyroid and reproductive health\n\n**Dosha:** Primarily balances Vata dosha\n**Category:** Rasayana (Rejuvenative)\n\n**How to use:** As powder (churna) mixed with warm milk and honey, capsules, or herbal tea.\n\n⚠️ **Precaution:** Pregnant women and those with thyroid disorders should consult a doctor before use.",
-  "Stress relief remedies":
-    "Here are the top Ayurvedic herbs for stress and anxiety relief:\n\n1. 🌿 **Ashwagandha** — The king of adaptogens. Lowers cortisol by up to 30%.\n\n2. 🧠 **Brahmi** — Calms the mind, improves focus and sleep quality.\n\n3. 🌸 **Jatamansi** — Ancient remedy for mental tranquility, similar to valerian.\n\n4. 🍃 **Tulsi (Holy Basil)** — Adaptogenic herb that balances stress hormones.\n\n5. 🌼 **Shankhpushpi** — Traditional brain tonic for anxiety and insomnia.\n\n**Daily Practice:**\n• Start with Ashwagandha milk before bed\n• Practice Pranayama (breathing exercises)\n• Use Brahmi oil for head massage\n\nWould you like detailed preparation methods for any of these?",
-  "Panchakarma explained":
-    "🏛️ **Panchakarma — The Five Sacred Cleansing Actions**\n\nPanchakarma is Ayurveda's premier detoxification and rejuvenation therapy, dating back over 5,000 years.\n\n**The Five Therapies:**\n\n1. **Vamana** (Therapeutic Emesis) — Cleanses the upper GI tract, balances Kapha\n2. **Virechana** (Purgation) — Purifies the liver and blood, balances Pitta\n3. **Basti** (Medicated Enema) — Most important therapy, balances Vata\n4. **Nasya** (Nasal Administration) — Clears sinuses and head region\n5. **Raktamokshana** (Blood Purification) — Removes toxins from blood\n\n**Preparation (Purvakarma):**\n• Snehana — Oil massage therapy\n• Swedana — Herbal steam therapy\n\n**Duration:** Typically 7-21 days under qualified supervision\n\n⚠️ Must be performed by a trained Ayurvedic practitioner.",
+type ChatResponse = {
+  answer: string;
+  sources: unknown[];
+  retrieval_query: string;
+  trace_id?: string;
+  user_message?: MessageItem;
+  assistant_message?: MessageItem;
 };
 
-function getAIResponse(userMessage: string): string {
-  // Check for keyword matches
-  const msg = userMessage.toLowerCase();
-  if (msg.includes("dosha") || msg.includes("constitution") || msg.includes("prakriti"))
-    return aiResponses["Analyze my Dosha"];
-  if (msg.includes("ashwagandha"))
-    return aiResponses["Tell me about Ashwagandha"];
-  if (msg.includes("stress") || msg.includes("anxiety") || msg.includes("calm"))
-    return aiResponses["Stress relief remedies"];
-  if (msg.includes("panchakarma") || msg.includes("detox") || msg.includes("cleanse"))
-    return aiResponses["Panchakarma explained"];
-
-  // Default response
-  return `Thank you for your question about "${userMessage}".\n\nAs your Ayurvedic guide, I can help with:\n\n🌿 **Herbal Remedies** — Discover the right herbs for your needs\n🔮 **Dosha Analysis** — Understand your unique constitution\n🍵 **Preparations** — Traditional methods and recipes\n📚 **Ancient Wisdom** — Insights from classical Ayurvedic texts\n\nCould you provide more details about what you'd like to know? I'm here to guide your wellness journey.`;
+function SignedOutPanel() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
+      <div className="max-w-md w-full glass-card-strong rounded-2xl p-8 text-center">
+        <h1 className="text-3xl font-display mb-3">Sign in to use Vaidya AI</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Your chats, uploads, and plant image analysis are stored under your account.
+        </p>
+        <SignInButton mode="modal">
+          <button className="h-11 px-5 rounded-xl bg-ayur-gold text-background font-medium hover:bg-ayur-amber transition-colors">
+            Sign in
+          </button>
+        </SignInButton>
+      </div>
+    </div>
+  );
 }
 
-export default function ChatPage() {
+function ChatApp() {
+  const { getToken, isLoaded } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeSessionId, setActiveSessionId] = useState("new");
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState("");
+  const [token, setToken] = useState("");
 
-  const handleSend = useCallback(
-    (text: string, files?: { name: string; type: string; url?: string }[]) => {
-      const userMsg: ChatMessage = {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: text,
-        timestamp: new Date(),
-        files,
-      };
+  const loadToken = useCallback(async () => {
+    const clerkToken = await getToken();
+    if (!clerkToken) throw new Error("Could not get Clerk session token");
+    setToken(clerkToken);
+    return clerkToken;
+  }, [getToken]);
 
-      setMessages((prev) => [...prev, userMsg]);
-      setIsTyping(true);
-
-      // Simulate AI thinking
-      const delay = 1000 + Math.random() * 1500;
-      setTimeout(() => {
-        const aiMsg: ChatMessage = {
-          id: `ai-${Date.now()}`,
-          role: "assistant",
-          content: getAIResponse(text),
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-        setIsTyping(false);
-      }, delay);
-    },
-    []
-  );
-
-  const handleSuggestionClick = useCallback(
-    (text: string) => {
-      handleSend(text);
-    },
-    [handleSend]
-  );
-
-  const handleNewChat = useCallback(() => {
-    setMessages([]);
-    setActiveSessionId("new");
+  const refreshSessions = useCallback(async (authToken: string) => {
+    const list = await getJson<SessionItem[]>("/sessions/", authToken);
+    setSessions(list);
+    return list;
   }, []);
+
+  const loadMessages = useCallback(async (sessionId: string, authToken: string) => {
+    const rows = await getJson<MessageItem[]>(`/sessions/${sessionId}/messages`, authToken);
+    setMessages(rows.map(fromApiMessage));
+  }, []);
+
+  const createSession = useCallback(async (authToken: string) => {
+    const created = await postJson<{ id: string }>("/sessions/", {}, authToken);
+    setActiveSessionId(created.id);
+    setMessages([]);
+    await refreshSessions(authToken);
+    return created.id;
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    let cancelled = false;
+    async function boot() {
+      setError("");
+      try {
+        const authToken = await loadToken();
+        const list = await refreshSessions(authToken);
+        if (cancelled) return;
+        if (list.length > 0) {
+          setActiveSessionId(list[0].id);
+          await loadMessages(list[0].id, authToken);
+        } else {
+          await createSession(authToken);
+        }
+      } catch (exc) {
+        if (!cancelled) setError(exc instanceof Error ? exc.message : String(exc));
+      }
+    }
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, loadToken, refreshSessions, loadMessages, createSession]);
+
+  const handleSelectSession = useCallback(async (id: string) => {
+    setError("");
+    try {
+      const authToken = token || (await loadToken());
+      setActiveSessionId(id);
+      await loadMessages(id, authToken);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : String(exc));
+    }
+  }, [token, loadToken, loadMessages]);
+
+  const handleNewChat = useCallback(async () => {
+    setError("");
+    try {
+      const authToken = token || (await loadToken());
+      await createSession(authToken);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : String(exc));
+    }
+  }, [token, loadToken, createSession]);
+
+  const handleDeleteSession = useCallback(async (id: string) => {
+    setError("");
+    try {
+      const authToken = token || (await loadToken());
+      await deleteJson(`/sessions/${id}`, authToken);
+      const list = await refreshSessions(authToken);
+      if (activeSessionId === id) {
+        if (list.length > 0) {
+          setActiveSessionId(list[0].id);
+          await loadMessages(list[0].id, authToken);
+        } else {
+          await createSession(authToken);
+        }
+      }
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : String(exc));
+    }
+  }, [activeSessionId, token, loadToken, refreshSessions, loadMessages, createSession]);
+
+  const handleSend = useCallback(async (text: string, files?: File[]) => {
+    const content = text.trim() || (files?.length ? "Please help me with the attached file(s)." : "");
+    if (!content || isTyping) return;
+    setError("");
+    setIsTyping(true);
+    try {
+      const authToken = token || (await loadToken());
+      const sessionId = activeSessionId || (await createSession(authToken));
+      let uploadIds: string[] | null = null;
+      if (files?.length) {
+        const uploaded = await uploadFiles(sessionId, files, content, authToken);
+        uploadIds = uploaded.map((item) => item.id);
+      }
+      const response = await postJson<ChatResponse>(
+        `/sessions/${sessionId}/chat/`,
+        { content, language: null, upload_ids: uploadIds },
+        authToken
+      );
+      if (response.user_message && response.assistant_message) {
+        setMessages((prev) => [
+          ...prev,
+          fromApiMessage(response.user_message as MessageItem),
+          fromApiMessage(response.assistant_message as MessageItem),
+        ]);
+      } else {
+        await loadMessages(sessionId, authToken);
+      }
+      await refreshSessions(authToken);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : String(exc));
+    } finally {
+      setIsTyping(false);
+    }
+  }, [activeSessionId, token, isTyping, loadToken, createSession, loadMessages, refreshSessions]);
+
+  const handleSuggestionClick = useCallback((text: string) => {
+    handleSend(text);
+  }, [handleSend]);
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* Header */}
-      <ChatHeader
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-      />
-
-      {/* Main area */}
+      <ChatHeader sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      {error && (
+        <div className="relative z-40 bg-destructive/15 border-b border-destructive/30 px-4 py-2 text-sm text-red-200">
+          {error}
+        </div>
+      )}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* 3D Sand background */}
         <SandParticles />
-
-        {/* Sidebar */}
         <ChatSidebar
           isOpen={sidebarOpen}
+          sessions={sessions}
           activeSessionId={activeSessionId}
-          onSelectSession={setActiveSessionId}
+          onSelectSession={handleSelectSession}
           onNewChat={handleNewChat}
+          onDeleteSession={handleDeleteSession}
         />
-
-        {/* Chat area */}
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatMessages
-            messages={messages}
-            isTyping={isTyping}
-            onSuggestionClick={handleSuggestionClick}
-          />
-          <ChatInput onSend={handleSend} disabled={isTyping} />
+          <ChatMessages messages={messages} isTyping={isTyping} token={token} onSuggestionClick={handleSuggestionClick} />
+          <ChatInput onSend={handleSend} disabled={isTyping || !token} />
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <>
+      <SignedOut>
+        <SignedOutPanel />
+      </SignedOut>
+      <SignedIn>
+        <ChatApp />
+      </SignedIn>
+    </>
   );
 }
