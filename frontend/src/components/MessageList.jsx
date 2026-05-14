@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import InlineImageResults from "./InlineImageResults.jsx";
 
 function formatTime(iso) {
   if (!iso) return "";
@@ -45,6 +46,9 @@ export default function MessageList({ messages, loading }) {
             </time>
           </header>
           <div className="bubble__body">{m.content}</div>
+          {m.role === "assistant" ? (
+            <InlineImageResults assistantText={m.content} />
+          ) : null}
         </article>
       ))}
 
