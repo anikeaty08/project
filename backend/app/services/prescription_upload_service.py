@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import chroma_store
@@ -82,8 +83,6 @@ def save_and_process_upload(
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-
-    from sqlalchemy import func, select
 
     n_uploads = db.scalar(
         select(func.count()).select_from(SessionUpload).where(
