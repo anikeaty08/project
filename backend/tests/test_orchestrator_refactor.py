@@ -5,7 +5,13 @@ from types import SimpleNamespace
 
 from fastapi import HTTPException
 
-from app.services.auth import hash_owner_token, new_owner_token, verify_owner_token
+from app.services.auth import (
+    AuthUser,
+    hash_owner_token,
+    new_owner_token,
+    verify_owner_token,
+    verify_session_user,
+)
 from app.services.chat_planner import ChatPlanner
 from app.services.chat_verification import ChatVerificationService
 from app.services.upload_context import UploadContextService
@@ -27,6 +33,23 @@ class TestOwnershipHelpers(unittest.TestCase):
     def test_legacy_session_without_token_allows_access(self) -> None:
         session = SimpleNamespace(owner_token_hash=None)
         verify_owner_token(session, None)
+
+    def test_clerk_session_user_accepts_owner(self) -> None:
+        session = SimpleNamespace(clerk_user_id="user_123")
+        user = AuthUser(clerk_user_id="user_123", claims={"sub": "user_123"})
+        verify_session_user(session, user)
+
+    def test_clerk_session_user_rejects_other_user(self) -> None:
+        session = SimpleNamespace(clerk_user_id="user_123")
+        user = AuthUser(clerk_user_id="user_456", claims={"sub": "user_456"})
+        with self.assertRaises(HTTPException) as ctx:
+            verify_session_user(session, user)
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_clerk_session_user_allows_legacy_unowned_session(self) -> None:
+        session = SimpleNamespace(clerk_user_id=None)
+        user = AuthUser(clerk_user_id="user_123", claims={"sub": "user_123"})
+        verify_session_user(session, user)
 
 
 class TestDeterministicRouting(unittest.TestCase):
