@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from app.config import settings
 from app.models.chat import ChatSession
 
 

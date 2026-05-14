@@ -29,6 +29,18 @@ class PrescriptionDocumentResult(BaseModel):
     flat_text: str = ""
 
 
+class PlantImageResult(BaseModel):
+    likely_name: str = ""
+    botanical_name: str = ""
+    confidence: float = 0.0
+    visual_evidence: list[str] = Field(default_factory=list)
+    uncertainty: str = ""
+    retrieval_query: str = ""
+    raw_notes: str = ""
+    provenance: str = ""
+    flat_text: str = ""
+
+
 class CitationItem(BaseModel):
     title: str = ""
     url: str = ""

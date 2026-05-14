@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     openai_chat_model: str = "gpt-4o-mini"
     openai_vision_model: str = "gpt-4o-mini"
+    openai_plant_vision_model: str = "gpt-4.1"
 
     database_url: str = (
         "postgresql+psycopg://rag:rag@localhost:5432/ragchat"

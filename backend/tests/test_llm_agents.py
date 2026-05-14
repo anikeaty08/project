@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.ingest.herb_formatter import herb_record_to_document
+from app.memory import PostgresSummaryMemoryStore
+from app.llm import client as llm_client
 from app.llm.agent_base import has_required_prompt_sections
 from app.llm.agents import (
     prescription_document,
@@ -79,6 +81,17 @@ class TestSeparateAgents(unittest.TestCase):
         self.assertIn("Balances all doshas (tridosha): False", rendered)
         self.assertIn("Rasa: Katu, Tikta", rendered)
 
+    def test_postgres_memory_merges_summary_delta(self) -> None:
+        class SessionLike:
+            summary_text = "User likes concise answers."
+
+        sess = SessionLike()
+        result = PostgresSummaryMemoryStore().merge_summary_delta(
+            sess, "User is testing the app."
+        )
+        self.assertIn("concise answers", result)
+        self.assertIn("testing the app", result)
+
     def test_old_agent_files_are_gone(self) -> None:
         old_agent_dir = "age" + "nts"
         old_spec_dir = "agent" + "_specs"
@@ -109,6 +122,28 @@ class TestSeparateAgents(unittest.TestCase):
             self.assertNotIn("secret key:", text)
             self.assertNotIn("access key:", text)
             self.assertNotIn("s" + "k-", text)
+
+    def test_openai_errors_become_value_errors(self) -> None:
+        class BrokenCompletions:
+            def create(self, **_: object) -> object:
+                from openai import APIConnectionError
+
+                raise APIConnectionError(request=None)
+
+        class BrokenChat:
+            completions = BrokenCompletions()
+
+        class BrokenOpenAI:
+            chat = BrokenChat()
+
+        with patch.object(llm_client.settings, "openai_api_key", "test-key"):
+            with patch.object(llm_client, "OpenAI", return_value=BrokenOpenAI()):
+                with self.assertRaisesRegex(ValueError, "LLM request failed"):
+                    llm_client.complete_chat(
+                        model="test-model",
+                        messages=[],
+                        temperature=0,
+                    )
 
 
 if __name__ == "__main__":

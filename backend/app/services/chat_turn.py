@@ -21,6 +21,57 @@ from app.models.session_upload import SessionUpload
 from app.rag import retrieve_context_merged
 from app.services.history_utils import messages_to_dicts, trim_messages_for_llm
 
+_QUERY_PRONOUNS = {
+    "it",
+    "this",
+    "that",
+    "they",
+    "them",
+    "these",
+    "those",
+    "he",
+    "she",
+    "its",
+    "unka",
+    "iske",
+    "iska",
+    "yeh",
+    "ye",
+    "woh",
+    "uska",
+}
+
+
+def _message_to_response(row: ChatMessage) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "role": row.role,
+        "content": row.content,
+        "sources": row.sources_json,
+        "created_at": row.created_at,
+    }
+
+
+def should_plan_retrieval_query(
+    messages: list[dict[str, Any]],
+    session_summary: str | None,
+    latest_user_content: str,
+) -> bool:
+    prior_turns = [
+        m
+        for m in messages[:-1]
+        if m.get("role") in ("user", "assistant") and str(m.get("content") or "").strip()
+    ]
+    if not prior_turns and not (session_summary or "").strip():
+        return False
+    words = {
+        token.strip(".,!?;:()[]{}\"'").lower()
+        for token in latest_user_content.split()
+    }
+    if words & _QUERY_PRONOUNS:
+        return True
+    return bool((session_summary or "").strip() and len(latest_user_content) < 40)
+
 
 def _load_session_uploads(
     db: Session, session_id: uuid.UUID, upload_ids: list[uuid.UUID] | None
@@ -105,11 +156,14 @@ def run_chat_turn(
         settings.chat_history_max_chars,
     )
 
-    retrieval_query, summary_delta = run_session_query_agent(
-        trimmed,
-        session_summary,
-        user_content,
-    )
+    if should_plan_retrieval_query(trimmed, session_summary, user_content):
+        retrieval_query, summary_delta = run_session_query_agent(
+            trimmed,
+            session_summary,
+            user_content,
+        )
+    else:
+        retrieval_query, summary_delta = user_content[:500], ""
 
     secondary = _upload_secondary_query(upload_rows)
     context_str, sources = retrieve_context_merged(
@@ -164,4 +218,6 @@ def run_chat_turn(
         "retrieval_query": retrieval_query,
         "user_message_id": str(user_row.id),
         "assistant_message_id": str(assistant_row.id),
+        "user_message": _message_to_response(user_row),
+        "assistant_message": _message_to_response(assistant_row),
     }

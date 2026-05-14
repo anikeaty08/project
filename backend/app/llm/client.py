@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 from app.config import settings
 
@@ -28,7 +28,10 @@ def complete_chat(
     if response_format:
         kwargs["response_format"] = response_format
     client = OpenAI(api_key=settings.openai_api_key)
-    completion = client.chat.completions.create(**kwargs)
+    try:
+        completion = client.chat.completions.create(**kwargs)
+    except OpenAIError as e:
+        raise ValueError(f"LLM request failed: {e.__class__.__name__}") from e
     return completion.choices[0].message.content or ""
 
 

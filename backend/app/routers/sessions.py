@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -74,6 +74,8 @@ class SessionChatResponse(BaseModel):
     retrieval_query: str
     user_message_id: str
     assistant_message_id: str
+    user_message: MessageItem | None = None
+    assistant_message: MessageItem | None = None
 
 
 @router.post("/", response_model=CreateSessionResponse)
@@ -132,6 +134,7 @@ def get_messages(session_id: uuid.UUID, db: Session = Depends(get_db)):
 def session_upload_files(
     session_id: uuid.UUID,
     files: list[UploadFile] = File(..., description="Prescription images or PDFs"),
+    context: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
     if not files:
@@ -148,6 +151,7 @@ def session_upload_files(
                 f.filename or "upload.bin",
                 f.content_type or "application/octet-stream",
                 raw,
+                user_context=context,
             )
         except ValueError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
@@ -197,4 +201,6 @@ def session_chat(
         retrieval_query=out["retrieval_query"],
         user_message_id=out["user_message_id"],
         assistant_message_id=out["assistant_message_id"],
+        user_message=MessageItem(**out["user_message"]),
+        assistant_message=MessageItem(**out["assistant_message"]),
     )

@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app import chroma_store
 from app.llm.tasks import (
     is_parse_weak,
+    is_prescription_related_message,
+    run_plant_image_agent,
     run_prescription_document_agent,
     run_prescription_verify_agent,
 )
@@ -58,7 +60,7 @@ def _upsert_upload_to_chroma(
     metadatas: list[dict[str, Any]] = [
         {
             "source": original_filename,
-            "source_type": "prescription_upload",
+            "source_type": "upload",
             "session_id": str(session_id),
             "upload_id": str(upload_id),
         }
@@ -73,6 +75,7 @@ def save_and_process_upload(
     original_filename: str,
     mime_type: str,
     file_bytes: bytes,
+    user_context: str | None = None,
 ) -> SessionUpload:
     if len(file_bytes) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(
@@ -101,9 +104,17 @@ def save_and_process_upload(
     dest_path = dest_dir / safe_name
     dest_path.write_bytes(file_bytes)
 
-    parse = run_prescription_document_agent(safe_name, mime, file_bytes)
+    is_image = mime.startswith("image/")
+    use_prescription_parser = (not is_image) or is_prescription_related_message(
+        user_context or ""
+    )
+    if use_prescription_parser:
+        parse = run_prescription_document_agent(safe_name, mime, file_bytes)
+    else:
+        parse = run_plant_image_agent(safe_name, mime, file_bytes, user_context)
+
     verify: dict[str, Any] | None = None
-    if is_parse_weak(parse) and settings.tavily_api_key:
+    if use_prescription_parser and is_parse_weak(parse) and settings.tavily_api_key:
         try:
             q = str(parse.get("retrieval_query") or parse.get("raw_notes") or safe_name)[:400]
             verify = run_prescription_verify_agent(

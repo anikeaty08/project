@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.llm.agents import (
+    plant_image,
     prescription_document,
     prescription_intent,
     prescription_verify,
@@ -40,6 +41,15 @@ def run_prescription_document_agent(
     file_bytes: bytes,
 ) -> dict[str, Any]:
     return prescription_document.run(filename, mime_type, file_bytes)
+
+
+def run_plant_image_agent(
+    filename: str,
+    mime_type: str,
+    file_bytes: bytes,
+    user_context: str | None = None,
+) -> dict[str, Any]:
+    return plant_image.run(filename, mime_type, file_bytes, user_context)
 
 
 def is_parse_weak(parsed: dict[str, Any]) -> bool:

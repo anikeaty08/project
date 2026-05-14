@@ -104,7 +104,7 @@ export function useChatSession() {
         const lang = language.trim() || null;
         let uploadIds = null;
         if (list.length > 0) {
-          const uploaded = await postSessionUploads(sessionId, list);
+          const uploaded = await postSessionUploads(sessionId, list, content);
           uploadIds = uploaded.map((u) => u.id);
         }
         const data = await postJson(`/sessions/${sessionId}/chat/`, {
@@ -113,7 +113,15 @@ export function useChatSession() {
           upload_ids: uploadIds,
         });
         setLastSources(data.sources || []);
-        await loadMessages(sessionId);
+        if (data.user_message && data.assistant_message) {
+          setMessages((prev) => [
+            ...prev,
+            data.user_message,
+            data.assistant_message,
+          ]);
+        } else {
+          await loadMessages(sessionId);
+        }
         await refreshSessions();
       } catch (e) {
         setError(e.message || String(e));

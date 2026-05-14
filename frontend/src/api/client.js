@@ -38,8 +38,9 @@ export async function postJson(path, body, extraHeaders = {}) {
  * @param {string} sessionId
  * @param {File[]} files
  */
-export async function postSessionUploads(sessionId, files) {
+export async function postSessionUploads(sessionId, files, context = "") {
   const fd = new FormData();
+  fd.append("context", context || "");
   for (const f of files) {
     fd.append("files", f);
   }
