@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import uuid
+import shutil
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import chroma_store
+from app.config import settings
 from app.db.session import get_db
 from app.models.chat import ChatMessage, ChatSession
+from app.models.session_upload import SessionUpload
 from app.services.chat_turn import run_chat_turn
 from app.services.prescription_upload_service import save_and_process_upload
 
@@ -56,6 +62,7 @@ class SessionUploadItem(BaseModel):
     session_id: str
     original_filename: str
     mime_type: str
+    url: str
     parse: dict
     verify: dict | None = None
     created_at: datetime
@@ -104,6 +111,25 @@ def list_sessions(db: Session = Depends(get_db), limit: int = 50):
         )
         for r in rows
     ]
+
+
+@router.delete("/{session_id}", status_code=204)
+def delete_session(session_id: uuid.UUID, db: Session = Depends(get_db)):
+    sess = db.get(ChatSession, session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    db.delete(sess)
+    db.commit()
+    chroma_store.delete_by_session(str(session_id))
+    upload_root = (settings.upload_dir / str(session_id)).resolve()
+    base = settings.upload_dir.resolve()
+    try:
+        upload_root.relative_to(base)
+    except ValueError:
+        return None
+    if upload_root.exists():
+        shutil.rmtree(upload_root, ignore_errors=True)
+    return None
 
 
 @router.get("/{session_id}/messages", response_model=list[MessageItem])
@@ -161,12 +187,32 @@ def session_upload_files(
                 session_id=str(row.session_id),
                 original_filename=row.original_filename,
                 mime_type=row.mime_type,
+                url=f"/sessions/{row.session_id}/uploads/{row.id}/file",
                 parse=row.parse_result_json or {},
                 verify=row.verify_result_json,
                 created_at=row.created_at,
             )
         )
     return results
+
+
+@router.get("/{session_id}/uploads/{upload_id}/file")
+def get_upload_file(
+    session_id: uuid.UUID,
+    upload_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    row = db.get(SessionUpload, upload_id)
+    if row is None or row.session_id != session_id:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    path = Path(row.storage_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Upload file missing")
+    return FileResponse(
+        path,
+        media_type=row.mime_type,
+        filename=row.original_filename,
+    )
 
 
 @router.post("/{session_id}/chat/", response_model=SessionChatResponse)

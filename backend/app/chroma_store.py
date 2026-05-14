@@ -67,3 +67,11 @@ def clear_collection() -> None:
     except Exception:
         pass
     get_collection()
+
+
+def delete_by_session(session_id: str) -> None:
+    col = get_collection()
+    try:
+        col.delete(where={"session_id": session_id})
+    except Exception:
+        pass

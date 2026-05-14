@@ -53,6 +53,21 @@ def _message_to_response(row: ChatMessage) -> dict[str, Any]:
     }
 
 
+def _upload_attachment_items(upload_rows: list[SessionUpload]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for row in upload_rows:
+        items.append(
+            {
+                "type": "attachment",
+                "upload_id": str(row.id),
+                "filename": row.original_filename,
+                "mime_type": row.mime_type,
+                "url": f"/sessions/{row.session_id}/uploads/{row.id}/file",
+            }
+        )
+    return items
+
+
 def should_plan_retrieval_query(
     messages: list[dict[str, Any]],
     session_summary: str | None,
@@ -140,6 +155,7 @@ def run_chat_turn(
         session_id=session_id,
         role="user",
         content=user_content,
+        sources_json=_upload_attachment_items(upload_rows) if upload_rows else None,
     )
     db.add(user_row)
     db.flush()
