@@ -1,48 +1,59 @@
-# Multilingual RAG (FastAPI + React + Chroma + Postgres + Redis)
+# Multilingual RAG
 
-Ayurveda / herb RAG with PostgreSQL chat history, Chroma retrieval, **local Sentence Transformers embeddings** (ingest from your machine), and optional **Redis** caching for query vectors.
+FastAPI Ayurveda/herb RAG with PostgreSQL chat history, Chroma retrieval, OpenAI chat/vision agents, optional Tavily verification, and a Clerk-authenticated Next.js frontend in `fronteend-1`.
 
-**Default Compose:** Postgres + Redis only. Run **API + ingest from [`backend/`](backend/)** with `backend/.env` (see [backend/.env.example](backend/.env.example)). Optional **`docker compose --profile app`** runs backend + frontend in Docker; Chroma still reads **`./vector_store`** on the host (bind mount).
+Default Compose starts Postgres and Redis only. Run ingest and the API from `backend/` for local development, or use `docker compose --profile app up -d --build` for the full stack after Chroma has been ingested on the host.
 
-## Quick start
+## Quick Start
 
-1. Put documents under `data/` (see [backend/README.md](backend/README.md)).
-2. `docker compose up -d` — Postgres + Redis.
-3. Copy [backend/.env.example](backend/.env.example) → `backend/.env` and set at least **`DATABASE_URL`**, **`OPENAI_API_KEY`** (chat), **`REDIS_URL`** if you use Redis, **`CHROMA_PATH=../vector_store`**.
-4. From `backend/`: `python -m app.ingest_cli --clear --url-limit 0` (first run downloads the embedding model).
-5. `uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`
-6. UI: `cd frontend && npm run dev` (proxy to your API port).
+1. Put documents under `data/`.
+2. Start infrastructure: `docker compose up -d`.
+3. Copy `backend/.env.example` to `backend/.env`.
+4. Set at least `DATABASE_URL`, `OPENAI_API_KEY`, `CHROMA_PATH=../vector_store`, and Clerk auth settings.
+5. From `backend/`, run `.\.venv\Scripts\python -m app.ingest_cli --clear --url-limit 0`.
+6. Start the API: `.\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 5500 --reload`.
+7. Copy `fronteend-1/.env.local.example` to `fronteend-1/.env.local`, set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `NEXT_PUBLIC_API_BASE_URL`.
+8. From `fronteend-1/`, run `npm run dev`.
 
-**Embeddings:** `EMBEDDING_MODEL` defaults to **`paraphrase-multilingual-MiniLM-L12-v2`**. If you change it, clear **`./vector_store`** (or `ingest_cli --clear`) and re-ingest. **Do not run ingest in Docker** unless you choose to; the intended path is the host `backend/` folder.
+## Auth
 
-**Optional full stack:** `docker compose --profile app up -d --build` — API http://localhost:8000/docs, UI http://localhost:8080. Ingest Chroma on the host first so `./vector_store` exists.
+The active frontend uses Clerk. The backend validates Clerk bearer tokens and stores sessions by Clerk user ID, so users can only list, open, delete, upload to, and chat inside their own sessions.
 
-## Ingest token
+Frontend env:
 
-When **`INGEST_TOKEN`** is set (Compose defaults it; override in root `.env`), **`POST /ingest/`** requires header **`X-Ingest-Token`**. Match [frontend/.env.example](frontend/.env.example) **`VITE_INGEST_TOKEN`** for local Vite. Empty token = open ingest (dev only).
+```env
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:5500
+```
+
+Backend env:
+
+```env
+CLERK_ISSUER=
+CLERK_AUDIENCE=
+CLERK_JWKS_URL=
+```
+
+`CLERK_JWKS_URL` is optional when `CLERK_ISSUER` is set.
 
 ## Services
 
-| Service   | Port | Default in Compose      |
-|----------|------|-------------------------|
-| postgres | 5432 | always                  |
-| redis    | 6379 | always                  |
-| backend  | 8000 | profile **`app`** only   |
-| frontend | 8080 | profile **`app`** only   |
+| Service | Port | Default in Compose |
+| --- | --- | --- |
+| postgres | 5432 | always |
+| redis | 6379 | always |
+| backend | 8000 | profile `app` only |
+| fronteend-1 | 8080 | profile `app` only |
 
-## Redis
+## Repo Layout
 
-Compose runs Redis 7 with AOF, **256MB maxmemory**, **allkeys-lru**. Set **`REDIS_URL=redis://127.0.0.1:6379/0`** in `backend/.env` for a local API. In-container API uses **`redis://redis:6379/0`** (set in Compose).
+- `backend/` - FastAPI, deterministic chat/upload orchestration, LLM agents, Chroma, ingest CLI
+- `fronteend-1/` - Next.js + Clerk frontend wired to the RAG backend
+- `data/` - PDFs, TXT, MD, `herb.json`, `Linkss.txt`
+- `vector_store/` - Chroma persistence, created by ingest and gitignored
 
-## Repo layout
+## Uploads And Verification
 
-- `backend/` — FastAPI, agents, Chroma, ingest CLI  
-- `frontend/` — Vite + React  
-- `data/` — PDFs, TXT, MD, `herb.json`, `Linkss.txt`, …  
-- `vector_store/` — Chroma persistence (gitignored; created by ingest)
+Uploads go to `POST /sessions/{id}/uploads` and are processed by backend services. Images are routed deterministically to plant vision or prescription/document parsing based on the prompt. PDFs/text are extracted page-wise where possible, indexed into Chroma, and can be verified with Tavily when `TAVILY_API_KEY` is configured.
 
-Large ingests use batched upserts (**`CHROMADB_UPSERT_BATCH_SIZE`** in `backend/.env`, default 4500).
-
-## Prescription uploads and verification
-
-Composer **+** attaches PDFs/images/text; uploads go to **`POST /sessions/{id}/uploads`**. Weak PDF text can trigger vision (**`OPENAI_VISION_MODEL`**). Optional **`TAVILY_API_KEY`** enables web verification with **`TAVILY_TRUSTED_DOMAINS`**. Compose uses volume **`uploads_data`** at **`/app/uploads`** when the API runs in Docker.
+Large files use queued in-process jobs with DB status, so chat can report when an upload is still processing instead of blocking forever.
