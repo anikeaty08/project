@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { SignedIn, SignedOut, SignInButton, useAuth } from "@clerk/nextjs";
+import { SignInButton, useAuth } from "@clerk/nextjs";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatMessages, fromApiMessage, type ChatMessage } from "@/components/chat/chat-messages";
@@ -216,14 +216,18 @@ function ChatApp() {
 }
 
 export default function ChatPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+  if (!isSignedIn) {
+    return <SignedOutPanel />;
+  }
   return (
-    <>
-      <SignedOut>
-        <SignedOutPanel />
-      </SignedOut>
-      <SignedIn>
-        <ChatApp />
-      </SignedIn>
-    </>
+    <ChatApp />
   );
 }
