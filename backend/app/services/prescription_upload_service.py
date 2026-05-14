@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -70,11 +71,13 @@ def process_existing_upload(
         upload.parse_result_json = parse
         upload.verify_result_json = verify
         upload.status = "completed"
+        upload.processed_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(upload)
         return upload
     except Exception:
         upload.status = "failed"
+        upload.processed_at = datetime.now(timezone.utc)
         db.commit()
         raise
 
