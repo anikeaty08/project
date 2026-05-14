@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.tasks import verify_result_to_prompt_block
 from app.models.session_upload import SessionUpload
+from app.services.auth import AuthUser
 from app.services.chat_orchestrator import ChatOrchestrator
 from app.services.chat_planner import should_plan_retrieval_query
 from app.services.upload_context import UploadContextService
@@ -30,6 +31,7 @@ def run_chat_turn(
     language: str | None,
     upload_ids: list[uuid.UUID] | None = None,
     owner_token: str | None = None,
+    auth_user: AuthUser | None = None,
 ) -> dict[str, Any]:
     return ChatOrchestrator().run_turn(
         db,
@@ -37,7 +39,7 @@ def run_chat_turn(
         user_content,
         language,
         upload_ids=upload_ids,
-        owner_token=owner_token,
+        auth_user=auth_user,
     )
 
 

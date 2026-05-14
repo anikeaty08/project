@@ -16,7 +16,7 @@ from app.config import settings
 from app.db.session import get_db
 from app.models.chat import ChatMessage, ChatSession
 from app.models.session_upload import SessionUpload
-from app.services.auth import hash_owner_token, new_owner_token, owner_header, verify_owner_token
+from app.services.auth import AuthUser, require_clerk_user, verify_session_user
 from app.services.chat_turn import run_chat_turn
 from app.services.prescription_upload_service import save_upload_queued
 from app.services.upload_jobs import upload_job_runner
@@ -33,7 +33,6 @@ class CreateSessionResponse(BaseModel):
     id: str
     title: str | None
     created_at: datetime
-    owner_token: str | None = None
 
 
 class SessionListItem(BaseModel):
@@ -94,9 +93,12 @@ class SessionChatResponse(BaseModel):
 
 
 @router.post("/", response_model=CreateSessionResponse)
-def create_session(body: CreateSessionRequest, db: Session = Depends(get_db)):
-    token = new_owner_token()
-    s = ChatSession(title=body.title, owner_token_hash=hash_owner_token(token))
+def create_session(
+    body: CreateSessionRequest,
+    auth_user: AuthUser = Depends(require_clerk_user),
+    db: Session = Depends(get_db),
+):
+    s = ChatSession(title=body.title, clerk_user_id=auth_user.clerk_user_id)
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -104,14 +106,18 @@ def create_session(body: CreateSessionRequest, db: Session = Depends(get_db)):
         id=str(s.id),
         title=s.title,
         created_at=s.created_at,
-        owner_token=token,
     )
 
 
 @router.get("/", response_model=list[SessionListItem])
-def list_sessions(db: Session = Depends(get_db), limit: int = 50):
+def list_sessions(
+    auth_user: AuthUser = Depends(require_clerk_user),
+    db: Session = Depends(get_db),
+    limit: int = 50,
+):
     stmt = (
         select(ChatSession)
+        .where(ChatSession.clerk_user_id == auth_user.clerk_user_id)
         .order_by(ChatSession.updated_at.desc(), ChatSession.created_at.desc())
         .limit(min(limit, 100))
     )
@@ -130,13 +136,13 @@ def list_sessions(db: Session = Depends(get_db), limit: int = 50):
 @router.delete("/{session_id}", status_code=204)
 def delete_session(
     session_id: uuid.UUID,
-    token: str | None = Depends(owner_header),
+    auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_owner_token(sess, token)
+    verify_session_user(sess, auth_user)
     db.delete(sess)
     db.commit()
     chroma_store.delete_by_session(str(session_id))
@@ -154,13 +160,13 @@ def delete_session(
 @router.get("/{session_id}/messages", response_model=list[MessageItem])
 def get_messages(
     session_id: uuid.UUID,
-    token: str | None = Depends(owner_header),
+    auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_owner_token(sess, token)
+    verify_session_user(sess, auth_user)
     stmt = (
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -184,13 +190,13 @@ def session_upload_files(
     session_id: uuid.UUID,
     files: list[UploadFile] = File(..., description="Prescription images or PDFs"),
     context: str = Form(default=""),
-    token: str | None = Depends(owner_header),
+    auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_owner_token(sess, token)
+    verify_session_user(sess, auth_user)
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     results: list[SessionUploadItem] = []
@@ -230,13 +236,13 @@ def session_upload_files(
 @router.get("/{session_id}/uploads", response_model=list[SessionUploadItem])
 def list_uploads(
     session_id: uuid.UUID,
-    token: str | None = Depends(owner_header),
+    auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_owner_token(sess, token)
+    verify_session_user(sess, auth_user)
     rows = db.scalars(
         select(SessionUpload)
         .where(SessionUpload.session_id == session_id)
@@ -264,14 +270,13 @@ def list_uploads(
 def get_upload_file(
     session_id: uuid.UUID,
     upload_id: uuid.UUID,
-    token: str | None = Depends(owner_header),
-    owner_token: str | None = Query(default=None),
+    auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
     sess = db.get(ChatSession, session_id)
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    verify_owner_token(sess, token or owner_token)
+    verify_session_user(sess, auth_user)
     row = db.get(SessionUpload, upload_id)
     if row is None or row.session_id != session_id:
         raise HTTPException(status_code=404, detail="Upload not found")
@@ -289,7 +294,7 @@ def get_upload_file(
 def session_chat(
     session_id: uuid.UUID,
     body: SessionChatRequest,
-    token: str | None = Depends(owner_header),
+    auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
     upload_uuid_list: list[uuid.UUID] | None = None
@@ -309,7 +314,7 @@ def session_chat(
             body.content,
             body.language,
             upload_ids=upload_uuid_list,
-            owner_token=token,
+            auth_user=auth_user,
         )
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e

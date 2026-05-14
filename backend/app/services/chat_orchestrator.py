@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.memory import get_memory_store
 from app.services.answer_service import AnswerService
-from app.services.auth import verify_owner_token
+from app.services.auth import verify_session_user, AuthUser
 from app.services.chat_models import message_to_response
 from app.services.chat_planner import ChatPlanner
 from app.services.chat_repository import ChatRepository
@@ -37,7 +37,7 @@ class ChatOrchestrator:
         user_content: str,
         language: str | None,
         upload_ids: list[uuid.UUID] | None = None,
-        owner_token: str | None = None,
+        auth_user: AuthUser | None = None,
     ) -> dict[str, Any]:
         trace_id = new_trace_id()
         user_content = user_content.strip()
@@ -46,7 +46,8 @@ class ChatOrchestrator:
 
         with traced_stage(trace_id, session_id, "chat.validate"):
             session = self.repo.get_session(db, session_id)
-            verify_owner_token(session, owner_token)
+            if auth_user is not None:
+                verify_session_user(session, auth_user)
             uploads = self.repo.load_uploads(db, session_id, upload_ids)
 
         memory = get_memory_store()
