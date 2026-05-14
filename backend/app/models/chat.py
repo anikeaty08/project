@@ -29,6 +29,9 @@ class ChatSession(Base):
     messages: Mapped[list["ChatMessage"]] = relationship(
         "ChatMessage", back_populates="session", cascade="all, delete-orphan"
     )
+    uploads: Mapped[list["SessionUpload"]] = relationship(
+        "SessionUpload", back_populates="session", cascade="all, delete-orphan"
+    )
 
 
 class ChatMessage(Base):

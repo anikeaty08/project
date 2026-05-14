@@ -50,7 +50,7 @@ def init_db() -> None:
     """Create tables if DATABASE_URL is configured."""
     if not settings.database_url:
         return
-    from app.models import chat  # noqa: F401
+    from app.models import chat, session_upload  # noqa: F401
 
     from app.db.base import Base
 
