@@ -1,8 +1,9 @@
 """
-Docker one-shot: ingest into Chroma on first deploy, then exit.
+Legacy Docker one-shot ingest helper (not wired in docker-compose).
 
 Skips if marker file exists or collection already has rows.
-OPENAI_API_KEY is not required for ingestion.
+Embeddings use local Sentence Transformers; OPENAI_API_KEY is only needed
+if ingest triggers OpenAI elsewhere (e.g. optional tooling).
 """
 
 from __future__ import annotations

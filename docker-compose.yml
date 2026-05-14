@@ -1,5 +1,8 @@
-# Full stack: Postgres + Redis → vector-init (first ingest) → backend → frontend.
-# OPENAI_API_KEY may be empty; API still starts (chat needs the key later).
+# Default: Postgres + Redis only (run API + ingest from ./backend locally).
+# Full stack in Docker: docker compose --profile app up -d --build
+#
+# Chroma / vectors: ingest from the host (`cd backend && python -m app.ingest_cli ...`) with
+# CHROMA_PATH=../vector_store. Bind-mount ./vector_store into the backend container with profile `app`.
 
 services:
   postgres:
@@ -37,27 +40,8 @@ services:
       timeout: 3s
       retries: 5
 
-  vector-init:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    image: rag-backend:latest
-    container_name: rag-vector-init
-    environment:
-      DATA_DIR: /data
-      CHROMA_PATH: /app/vector_store
-      REDIS_URL: redis://redis:6379/0
-      AUTO_INGEST_URL_LIMIT: ${AUTO_INGEST_URL_LIMIT:-0}
-    volumes:
-      - ./data:/data:ro
-      - vector_store_data:/app/vector_store
-    command: ["python", "-m", "app.docker_vector_init"]
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: "no"
-
   backend:
+    profiles: ["app"]
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -79,15 +63,13 @@ services:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
     volumes:
       - ./data:/data:ro
-      - vector_store_data:/app/vector_store
+      - ./vector_store:/app/vector_store
       - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      vector-init:
-        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -100,6 +82,7 @@ services:
       start_period: 120s
 
   frontend:
+    profiles: ["app"]
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -117,5 +100,4 @@ services:
 volumes:
   rag_pgdata:
   rag_redisdata:
-  vector_store_data:
   uploads_data:

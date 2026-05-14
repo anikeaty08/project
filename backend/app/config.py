@@ -17,9 +17,13 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     ingest_token: str = ""
 
-    chroma_path: Path = Path("./chroma_db")
-    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    chroma_path: Path = Path("../vector_store")
+    # Local CPU embeddings (same approach as pre-Docker ingest on the host).
+    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
     data_dir: Path = _default_data_dir()
+
+    redis_url: str = ""
+    embedding_cache_ttl_seconds: int = 86_400
 
     chunk_size: int = 800
     chunk_overlap: int = 120

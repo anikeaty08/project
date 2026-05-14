@@ -1,28 +1,30 @@
 from __future__ import annotations
 
-from functools import lru_cache
-
 from sentence_transformers import SentenceTransformer
 
 from app.config import settings
 
+_model: SentenceTransformer | None = None
 
-@lru_cache(maxsize=1)
-def get_model() -> SentenceTransformer:
-    return SentenceTransformer(settings.embedding_model)
+
+def _get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        _model = SentenceTransformer(settings.embedding_model)
+    return _model
 
 
 def embed_texts(texts: list[str], batch_size: int = 32) -> list[list[float]]:
     if not texts:
         return []
-    model = get_model()
-    vectors = model.encode(
+    model = _get_model()
+    vecs = model.encode(
         texts,
-        batch_size=batch_size,
-        show_progress_bar=False,
+        batch_size=max(1, batch_size),
         convert_to_numpy=True,
+        show_progress_bar=False,
     )
-    return [v.tolist() for v in vectors]
+    return [row.tolist() for row in vecs]
 
 
 def embed_query(text: str) -> list[float]:

@@ -1,40 +1,30 @@
 # Backend (FastAPI)
 
-Python API: RAG retrieval (Chroma + **Sentence Transformers** / PyTorch **CPU** in Docker — no NVIDIA CUDA wheel stack), dual `gpt-4o-mini` agents (session query + grounded answer), PostgreSQL chat history, optional Redis embedding cache.
+RAG with **Chroma** + **local Sentence Transformers** embeddings, OpenAI chat/vision, PostgreSQL sessions, optional Redis embedding cache.
 
 ## Requirements
 
-- Python 3.12+ recommended  
-- For local DB: Docker `postgres` + `redis` from repo root (`docker compose up -d postgres redis`)
-
-### Docker-only: you do not need `backend/.venv`
-
-The API runs inside the **Docker image**; `backend/.venv` is only for running Python on your PC.
-
-To delete `backend/.venv`, **stop anything using it** first (otherwise Windows locks `.dll` / `.pyd` files):
-
-1. Stop **uvicorn** / **Python** terminals pointed at this project (and Cursor terminals whose cwd is `backend`).
-2. In Task Manager, end stray **Python** processes if needed.
-3. Run from repo root:
-
-   ```powershell
-   .\scripts\remove-backend-venv.ps1
-   ```
-
-   Or delete `backend\.venv` in File Explorer after closing those processes.
+- Python 3.12+  
+- **Docker (recommended):** `docker compose up -d` at repo root for Postgres + Redis only; run **ingest + uvicorn** from this directory.
 
 ## Setup
 
 ```powershell
 cd backend
 python -m venv .venv
-.\.venv\Scripts\pip install "torch>=2.2.0" --index-url https://download.pytorch.org/whl/cpu
 .\.venv\Scripts\pip install -r requirements.txt
 copy .env.example .env
-# Edit .env: OPENAI_API_KEY, DATABASE_URL, optional REDIS_URL
 ```
 
-On **Linux/macOS**, run the same **`pip install "torch>=2.2.0" --index-url https://download.pytorch.org/whl/cpu`** before `pip install -r requirements.txt` so you avoid the default CUDA PyTorch wheel. If you skip that step, `pip` may download the large NVIDIA-backed build.
+Edit `backend/.env` (examples below target Docker DBs on localhost):
+
+| Variable | Example |
+|----------|---------|
+| `DATABASE_URL` | `postgresql+psycopg://rag:rag@127.0.0.1:5432/ragchat` |
+| `REDIS_URL` | `redis://127.0.0.1:6379/0` (optional; speeds repeated queries) |
+| `CHROMA_PATH` | `../vector_store` |
+| `EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` (default) |
+| `OPENAI_API_KEY` | Required for chat / vision (not for vector embedding) |
 
 ## Run API
 
@@ -42,52 +32,33 @@ On **Linux/macOS**, run the same **`pip install "torch>=2.2.0" --index-url https
 .\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-If port **8000** is blocked on Windows, use another port (e.g. `8765`) and point the Vite proxy in `frontend/vite.config.js` at that port.
+If port **8000** is busy, pick another port and point `frontend/vite.config.js` at it.
 
-## Reset local vector data
-
-Run [scripts/clean_local_vector_store.ps1](../scripts/clean_local_vector_store.ps1) to delete `backend/chroma_db` and `backend/vector_store` on disk. For Docker, remove the `vector_store_data` volume (see root [README.md](../README.md)).
-
-## Ingest (vectors)
-
-From `backend/` with venv active:
+## Ingest (from `backend/`)
 
 ```powershell
-# Herbs + local files only (no URLs from Linkss.txt)
 .\.venv\Scripts\python -m app.ingest_cli --clear --url-limit 0
-
-# Everything including all URLs in data/Linkss.txt (slow / large)
+# Include all URLs from data/Linkss.txt (slow):
 .\.venv\Scripts\python -m app.ingest_cli --clear
 ```
 
-Chroma writes under `CHROMA_PATH` (default `./vector_store`). Large runs use **batched upserts** to avoid `Batch size ... greater than max batch size` errors.
+Chroma writes to **`CHROMA_PATH`**. Reset: delete that folder or `--clear`.
 
-## Docker
+## Reset local vector data
 
-From the **repo root**, `docker compose up -d --build` runs **`vector-init`** (first-time ingest if needed), then **`backend`**, then **`frontend`**. Ingest does **not** require `OPENAI_API_KEY`; chat does.
+[scripts/clean_local_vector_store.ps1](../scripts/clean_local_vector_store.ps1) removes repo-root `vector_store/` and legacy `backend/chroma_db` if present.
 
-See the root [README.md](../README.md) for `AUTO_INGEST_URL_LIMIT`, volumes, and re-indexing.
+## Docker (`--profile app`)
 
-Build is defined in [Dockerfile](Dockerfile) with context at the **repo root** (see root `docker-compose.yml`).
+From repo root: `docker compose --profile app up -d --build`. Backend bind-mounts **`./vector_store`** — run ingest on the host first. See root [README.md](../README.md) for **`INGEST_TOKEN`**.
 
-Environment (typical):
-
-| Variable | Description |
-|----------|-------------|
-| `OPENAI_API_KEY` | Required for chat only; API starts without it |
-| `DATABASE_URL` | Postgres SQLAlchemy URL |
-| `REDIS_URL` | Optional, e.g. `redis://localhost:6379/0` |
-| `DATA_DIR` | Folder to read for ingest (Docker: `/data`) |
-| `CHROMA_PATH` | Chroma persistence directory |
-| `INGEST_TOKEN` | If set, `POST /ingest/` requires `X-Ingest-Token` header (see root README) |
-
-## Main HTTP routes
+## HTTP routes
 
 - `GET /health`  
-- `POST /ingest/` — rebuild index  
+- `POST /ingest/`  
 - `POST /sessions/`, `GET /sessions/`, `GET /sessions/{id}/messages`, `POST /sessions/{id}/chat/`  
-- `POST /chat/` — legacy full `messages[]` RAG (no DB session)
+- `POST /chat/` — legacy RAG without DB session  
 
 ## Redis cache
 
-When `REDIS_URL` is set, **single-query** embeddings (`embed_query`) are cached with TTL `EMBEDDING_CACHE_TTL_SECONDS` to speed repeated questions. Ingest bulk embedding does not use this cache.
+With **`REDIS_URL`** set, **`embed_query`** results are cached for **`EMBEDDING_CACHE_TTL_SECONDS`** (default 86400). Bulk ingest does not use this cache.

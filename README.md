@@ -1,99 +1,48 @@
 # Multilingual RAG (FastAPI + React + Chroma + Postgres + Redis)
 
-Ayurveda / herb RAG with **session chat stored in PostgreSQL**, **smart retrieval** (dedicated query from a session agent), **ChromaDB** for vectors, **Redis** cache for query embeddings, and **Docker Compose** that runs **first-time vector ingestion** automatically, then starts the API and UI.
+Ayurveda / herb RAG with PostgreSQL chat history, Chroma retrieval, **local Sentence Transformers embeddings** (ingest from your machine), and optional **Redis** caching for query vectors.
 
-## Docker build notes (PyTorch / `EOF` errors)
+**Default Compose:** Postgres + Redis only. Run **API + ingest from [`backend/`](backend/)** with `backend/.env` (see [backend/.env.example](backend/.env.example)). Optional **`docker compose --profile app`** runs backend + frontend in Docker; Chroma still reads **`./vector_store`** on the host (bind mount).
 
-The API image installs **CPU-only PyTorch** from PyTorch’s wheel index, then **`sentence-transformers`**, so you do **not** get the multi‑gigabyte **NVIDIA CUDA** PyTorch bundle. You still use the **same** embedding model as before (`paraphrase-multilingual-MiniLM-L12-v2`). If a build stops with **`rpc error: code = Unavailable ... EOF`**, retry after freeing disk/RAM, or run `docker compose build backend` alone.
+## Quick start
 
-## Quick start (Docker)
+1. Put documents under `data/` (see [backend/README.md](backend/README.md)).
+2. `docker compose up -d` — Postgres + Redis.
+3. Copy [backend/.env.example](backend/.env.example) → `backend/.env` and set at least **`DATABASE_URL`**, **`OPENAI_API_KEY`** (chat), **`REDIS_URL`** if you use Redis, **`CHROMA_PATH=../vector_store`**.
+4. From `backend/`: `python -m app.ingest_cli --clear --url-limit 0` (first run downloads the embedding model).
+5. `uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`
+6. UI: `cd frontend && npm run dev` (proxy to your API port).
 
-1. Put your documents under `data/` (see [backend/README.md](backend/README.md) for ingest formats).
+**Embeddings:** `EMBEDDING_MODEL` defaults to **`paraphrase-multilingual-MiniLM-L12-v2`**. If you change it, clear **`./vector_store`** (or `ingest_cli --clear`) and re-ingest. **Do not run ingest in Docker** unless you choose to; the intended path is the host `backend/` folder.
 
-2. Create a **project root** `.env` (optional — Compose substitutes variables from here):
+**Optional full stack:** `docker compose --profile app up -d --build` — API http://localhost:8000/docs, UI http://localhost:8080. Ingest Chroma on the host first so `./vector_store` exists.
 
-   ```env
-   # Optional until you use chat; API and UI still start without it
-   OPENAI_API_KEY=
+## Ingest token
 
-   # First auto-ingest: 0 = skip Linkss.txt URL downloads (fast). Use "all" to fetch every URL.
-   AUTO_INGEST_URL_LIMIT=0
-   ```
-
-3. Start everything (ingest runs first on a **fresh** `vector_store` volume, then backend, then frontend):
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-   - **`vector-init`** one-shot: if there is no marker and Chroma is empty, it runs ingestion (no OpenAI key required), then exits. If the volume was already populated or the marker exists, it skips ingest.
-   - **`backend`** starts only after `vector-init` completes successfully (still starts if `OPENAI_API_KEY` is empty).
-   - **`frontend`** starts only after the backend passes its health check.
-
-   - **API:** http://localhost:8000/docs  
-   - **UI:** http://localhost:8080 (Nginx proxies `/sessions`, `/chat`, `/ingest`, `/health` to the API)
-
-4. **Manual re-index** (optional, same image as the API):
-
-   ```bash
-   docker compose run --rm backend python -m app.ingest_cli --clear --url-limit 0
-   ```
-
-5. **Force first-time ingest again:** remove the Docker volume (or delete `.vector_ingest_done` inside the volume):
-
-   ```bash
-   docker compose down
-   docker volume rm project_vector_store_data
-   ```
-
-   (Prefix may match your folder name; use `docker volume ls`.)
-
-## Redis
-
-Compose runs **Redis 7** with AOF persistence, **256MB maxmemory**, and **`allkeys-lru`** eviction so embedding cache keys expire under pressure. The API receives `REDIS_URL=redis://redis:6379/0` automatically.
-
-For **local** API + Docker Redis only: set `REDIS_URL=redis://127.0.0.1:6379/0` in `backend/.env` (see [backend/.env.example](backend/.env.example)).
-
-## Ingest token (`INGEST_TOKEN`)
-
-A shared secret so random clients cannot call **`POST /ingest/`** (re-indexing is heavy). When `INGEST_TOKEN` is set, every ingest request must include header **`X-Ingest-Token: <same value>`**.
-
-- **Docker Compose** defaults it to `rag-dev-ingest-xk9m2p7q` if you do not set `INGEST_TOKEN` in the root `.env`. Override there for production.
-- **Frontend**: copy [frontend/.env.example](frontend/.env.example) to `frontend/.env.local` with the **same** `VITE_INGEST_TOKEN` for local Vite. The Docker-built UI receives the token via build `args` from `INGEST_TOKEN`.
-- To **disable** the check (open ingest, dev only), set `INGEST_TOKEN=` empty in root `.env` and rebuild; leave `INGEST_TOKEN` unset in `backend/.env` for local API without Docker.
+When **`INGEST_TOKEN`** is set (Compose defaults it; override in root `.env`), **`POST /ingest/`** requires header **`X-Ingest-Token`**. Match [frontend/.env.example](frontend/.env.example) **`VITE_INGEST_TOKEN`** for local Vite. Empty token = open ingest (dev only).
 
 ## Services
 
-| Service    | Port (host) | Purpose                          |
-|-----------|-------------|----------------------------------|
-| vector-init | (one-shot) | First-time Chroma ingest; exits before API starts |
-| postgres  | 5432        | Chat sessions + messages         |
-| redis     | 6379        | Query-embedding cache (API uses in Docker) |
-| backend   | 8000        | FastAPI                          |
-| frontend  | 8080        | Static UI + API reverse proxy    |
+| Service   | Port | Default in Compose      |
+|----------|------|-------------------------|
+| postgres | 5432 | always                  |
+| redis    | 6379 | always                  |
+| backend  | 8000 | profile **`app`** only   |
+| frontend | 8080 | profile **`app`** only   |
 
-## Local development (no Docker UI)
+## Redis
 
-- Start Postgres + Redis: `docker compose up -d postgres redis`
-- Backend: see [backend/README.md](backend/README.md) — you can delete `backend/.venv` if you only use Docker; on Windows, stop `uvicorn`/Python first or run `.\scripts\remove-backend-venv.ps1`
-- Frontend: see [frontend/README.md](frontend/README.md)
+Compose runs Redis 7 with AOF, **256MB maxmemory**, **allkeys-lru**. Set **`REDIS_URL=redis://127.0.0.1:6379/0`** in `backend/.env` for a local API. In-container API uses **`redis://redis:6379/0`** (set in Compose).
 
 ## Repo layout
 
 - `backend/` — FastAPI, agents, Chroma, ingest CLI  
-- `frontend/` — Vite + React chat UI  
-- `data/` — Your PDFs, TXT, MD, `herb.json`, `Linkss.txt`, etc.  
-- `docker-compose.yml` — Stack definition  
+- `frontend/` — Vite + React  
+- `data/` — PDFs, TXT, MD, `herb.json`, `Linkss.txt`, …  
+- `vector_store/` — Chroma persistence (gitignored; created by ingest)
 
-## Chroma batch limit
+Large ingests use batched upserts (**`CHROMADB_UPSERT_BATCH_SIZE`** in `backend/.env`, default 4500).
 
-Large ingests are **upserted in batches** (default 4500 vectors per request) to stay under Chroma’s internal batch cap (~5461). Tune `CHROMADB_UPSERT_BATCH_SIZE` in `backend/.env` if needed.
+## Prescription uploads and verification
 
-## Prescription uploads and web verification
-
-The chat composer includes a **+** control to attach **PDFs** and **images** (PNG, JPEG, WebP) plus plain **text/markdown** files. On send, the UI uploads files to **`POST /sessions/{id}/uploads`**, then sends the message with **`upload_ids`** so the backend can merge upload-derived retrieval with the normal session query.
-
-- **Vision extraction**: weak PDF text (short or below `PRESCRIPTION_EXTRACTION_MIN_CHARS`) triggers OpenAI vision on rendered pages (`VISION_PDF_MAX_PAGES`). Set **`OPENAI_VISION_MODEL`** (e.g. `gpt-4o-mini`).
-- **Tavily**: optional **`TAVILY_API_KEY`**. When set, verification runs if the document parse looks weak and when the user’s message looks **prescription-related** (keywords plus a small JSON classifier). Searches use your **`TAVILY_TRUSTED_DOMAINS`** list plus a general web pass so non-allowlisted hits can appear only as **supplementary** context in the synthesis step.
-- **Docker**: Compose mounts named volume **`uploads_data`** at **`/app/uploads`** and sets **`UPLOAD_DIR=/app/uploads`**. Do not commit API keys.
-- **Limits**: default **`MAX_UPLOAD_MB`** is 20; allowed MIME types are enforced server-side. Uploads are capped per session (see `prescription_upload_service`). Virus scanning is out of scope.
+Composer **+** attaches PDFs/images/text; uploads go to **`POST /sessions/{id}/uploads`**. Weak PDF text can trigger vision (**`OPENAI_VISION_MODEL`**). Optional **`TAVILY_API_KEY`** enables web verification with **`TAVILY_TRUSTED_DOMAINS`**. Compose uses volume **`uploads_data`** at **`/app/uploads`** when the API runs in Docker.
