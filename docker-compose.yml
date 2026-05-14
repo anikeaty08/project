@@ -56,8 +56,12 @@ services:
       CHROMA_PATH: /app/vector_store
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL:-gpt-4o-mini}
+      OPENAI_PLANT_VISION_MODEL: ${OPENAI_PLANT_VISION_MODEL:-gpt-4o}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       TAVILY_TRUSTED_DOMAINS: ${TAVILY_TRUSTED_DOMAINS:-}
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_AUDIENCE: ${CLERK_AUDIENCE:-}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-}
       INGEST_TOKEN: ${INGEST_TOKEN:-rag-dev-ingest-xk9m2p7q}
       UPLOAD_DIR: /app/uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
@@ -81,18 +85,18 @@ services:
       retries: 12
       start_period: 120s
 
-  frontend:
+  fronteend-1:
     profiles: ["app"]
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: fronteend-1/Dockerfile
       args:
-        VITE_INGEST_TOKEN: ${INGEST_TOKEN:-rag-dev-ingest-xk9m2p7q}
-        VITE_UNSPLASH_ACCESS_KEY: ${VITE_UNSPLASH_ACCESS_KEY:-}
-    image: rag-frontend:latest
-    container_name: rag-frontend
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+    image: rag-fronteend-1:latest
+    container_name: rag-fronteend-1
     ports:
-      - "8080:80"
+      - "8080:3000"
     depends_on:
       backend:
         condition: service_healthy
