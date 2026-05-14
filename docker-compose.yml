@@ -105,6 +105,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         VITE_INGEST_TOKEN: ${INGEST_TOKEN:-rag-dev-ingest-xk9m2p7q}
+        VITE_UNSPLASH_ACCESS_KEY: ${VITE_UNSPLASH_ACCESS_KEY:-}
     image: rag-frontend:latest
     container_name: rag-frontend
     ports:
