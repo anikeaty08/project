@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
@@ -132,6 +133,13 @@ def _upload_supplement_text(upload_rows: list[SessionUpload]) -> str:
     return "\n\n".join(blocks).strip()
 
 
+def _verification_unavailable_block(reason: str) -> str:
+    return (
+        "WEB_VERIFICATION (informational only, not medical advice):\n"
+        f"Limitations: {reason}"
+    )
+
+
 def run_chat_turn(
     db: Session,
     session_id: uuid.UUID,
@@ -182,28 +190,44 @@ def run_chat_turn(
     else:
         retrieval_query, summary_delta = user_content[:500], ""
 
-    secondary = _upload_secondary_query(upload_rows)
-    context_str, sources = retrieve_context_merged(
-        retrieval_query,
-        secondary,
-    )
-
     supplement_parts: list[str] = []
     up_sup = _upload_supplement_text(upload_rows)
     if up_sup:
         supplement_parts.append(up_sup)
 
-    if is_prescription_related_message(user_content) and settings.tavily_api_key:
-        doc_ctx = up_sup[:4000] if up_sup else None
-        search_q = f"{user_content}\n{retrieval_query}".strip()[:450]
-        try:
-            chat_verify = run_prescription_verify_agent(
+    secondary = _upload_secondary_query(upload_rows)
+    prescription_related = is_prescription_related_message(user_content)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieval_future = executor.submit(
+            retrieve_context_merged,
+            retrieval_query,
+            secondary,
+        )
+        verify_future = None
+        if prescription_related and settings.tavily_api_key:
+            doc_ctx = up_sup[:4000] if up_sup else None
+            search_q = f"{user_content}\n{retrieval_query}".strip()[:450]
+            verify_future = executor.submit(
+                run_prescription_verify_agent,
                 search_query=search_q,
                 context_from_document=doc_ctx,
             )
-            supplement_parts.append(verify_result_to_prompt_block(chat_verify))
-        except Exception:
-            pass
+
+        context_str, sources = retrieval_future.result()
+        if prescription_related and not settings.tavily_api_key:
+            supplement_parts.append(
+                _verification_unavailable_block("TAVILY_API_KEY is not configured.")
+            )
+        elif verify_future is not None:
+            try:
+                chat_verify = verify_future.result()
+                supplement_parts.append(verify_result_to_prompt_block(chat_verify))
+            except Exception as exc:
+                supplement_parts.append(
+                    _verification_unavailable_block(
+                        f"Tavily verification failed: {exc.__class__.__name__}."
+                    )
+                )
 
     supplement = "\n\n".join(supplement_parts).strip() or None
 
