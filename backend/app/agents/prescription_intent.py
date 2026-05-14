@@ -79,7 +79,7 @@ def _mini_classifier(text: str) -> bool:
 
 def is_prescription_related_message(text: str) -> bool:
     text = text.strip()
-    if not text:
+    if not text or len(text) < 12:
         return False
     if _keyword_prescription_intent(text):
         return True
