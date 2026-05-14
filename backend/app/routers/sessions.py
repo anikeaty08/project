@@ -129,14 +129,67 @@ def get_messages(session_id: uuid.UUID, db: Session = Depends(get_db)):
     ]
 
 
+@router.post("/{session_id}/uploads", response_model=list[SessionUploadItem])
+def session_upload_files(
+    session_id: uuid.UUID,
+    files: list[UploadFile] = File(..., description="Prescription images or PDFs"),
+    db: Session = Depends(get_db),
+):
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    results: list[SessionUploadItem] = []
+    for f in files:
+        raw = f.file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail=f"Empty file: {f.filename}")
+        try:
+            row = save_and_process_upload(
+                db,
+                session_id,
+                f.filename or "upload.bin",
+                f.content_type or "application/octet-stream",
+                raw,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        results.append(
+            SessionUploadItem(
+                id=str(row.id),
+                session_id=str(row.session_id),
+                original_filename=row.original_filename,
+                mime_type=row.mime_type,
+                parse=row.parse_result_json or {},
+                verify=row.verify_result_json,
+                created_at=row.created_at,
+            )
+        )
+    return results
+
+
 @router.post("/{session_id}/chat/", response_model=SessionChatResponse)
 def session_chat(
     session_id: uuid.UUID,
     body: SessionChatRequest,
     db: Session = Depends(get_db),
 ):
+    upload_uuid_list: list[uuid.UUID] | None = None
+    if body.upload_ids:
+        upload_uuid_list = []
+        for s in body.upload_ids:
+            try:
+                upload_uuid_list.append(uuid.UUID(str(s)))
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid upload_id: {s}"
+                ) from e
     try:
-        out = run_chat_turn(db, session_id, body.content, body.language)
+        out = run_chat_turn(
+            db,
+            session_id,
+            body.content,
+            body.language,
+            upload_ids=upload_uuid_list,
+        )
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     return SessionChatResponse(
