@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     try:
         from app.db.session import init_db
