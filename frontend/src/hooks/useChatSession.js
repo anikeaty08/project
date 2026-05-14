@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJson, postJson } from "../api/client.js";
+import { getJson, postJson, postSessionUploads } from "../api/client.js";
 
 const SESSION_KEY = "rag_chat_session_id";
 
