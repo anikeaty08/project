@@ -1,0 +1,72 @@
+some online datasets
+
+from datasets import load_dataset
+
+# Login using e.g. `huggingface-cli login` to access this dataset
+ds = load_dataset(bharatgenaiBhashaBench-Ayur, English)
+
+Copy
+from datasets import load_dataset
+
+# Login using e.g. `huggingface-cli login` to access this dataset
+ds = load_dataset(bharatgenaiBhashaBench-Ayur, Hindi)
+
+
+https://ia801705.us.archive.org/31/items/ayurveda-encyclopedia-swami-sadashiva-tirtha-r.-c.-uniyal/Ayurveda%20Encyclopedia%20-%20Swami%20Sadashiva%20Tirtha%2C%20R.C.%20Uniyal_djvu.txt
+
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20I%20Intro%20%26%201-368%20அயக்கரண்டி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20II%20582-883%20ஆடி-இருதயப்பிதுக்கம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20II%20884-1042%20இருதயப்பிளவு-உஞ்சல்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20II%201043-1203%20உடகாலம்-உருகுமுப்பு_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20II%201204-1371%20உருகை-ஊனுருக்கி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20II%201372-1467%20ஊனேறி-எழுச்சி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-I%20Part%20II%201468-1742%20எழுச்சிக்கண்ணோய்-ஔவை_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20I%201-259%20க-கந்தமூலகம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20I%20260-681%20கந்தமூலபலாதி-காந்தமண்பற்பம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20I%20682-800%20காந்தமயமலை-கான்றை_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20II%20801-1019%20கிகண்டம்-குருவாக்கம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20II%201018-1213%20குருமுனி-கொண்டலை_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20II%201214-1319%20கொண்டல்-கோழிக்கறி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-II%20Part%20II%201320-1336%20கோழிக்காசிரைக்கீரை-கௌனிகம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-III%20Part%20I%201753-1943%20ச-சலிகந்தம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-III%20Part%20I%201944-2093%20சலிகம்-சித்தர்கொள்கை_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-III%20Part%20I%202094-2109%20சித்தர்சமாதி-சித்தர்நோக்கம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-III%20Part%20I%202110-2161%20சித்தர்நோக்கம்-சிந்தி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-III%20Part%20I%202162-2224%20சிந்திதம்-சிறஞ்சீவி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20I%201-49%20சிற்றிலை-சீந்தில்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20I%2050-391%20சீந்தில்-சூரத்து_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20I%20392-445%20சூரத்துக்கடுக்காய்-செங்கொழிஞ்சி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20I%20446-781%20செங்கொன்றை-தச்சன்குருவி_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20I%20782-1020%20தச்சன்மூலி-திகசம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20II%201067-1270%20திராவகக்காரம்-தூசு_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20II%201271-1499%20தூசுதாங்கி-நட்சத்திரசீரகம்_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20II%201500-1771%20நட்சத்திரந்தோன்றி-நிமிளைவகை_djvu.txt
+
+https://archive.org/download/TVSdictionary/Vol-IV%20Part%20II%201772-2000%20நிமீலனம்-நௌவுகு_djvu.txt
