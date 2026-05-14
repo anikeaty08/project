@@ -3,11 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from app.llm.tasks import (
-    is_prescription_keyword_match,
-    run_plant_image_agent,
-    run_prescription_document_agent,
-)
+from app.llm.tasks import is_prescription_keyword_match
 from app.models.session_upload import SessionUpload
 
 
@@ -21,13 +17,23 @@ class UploadProcessingService:
     def process(self, upload: SessionUpload, user_context: str | None = None) -> dict[str, Any]:
         data = Path(upload.storage_path).read_bytes()
         if self.route_kind(upload.mime_type, user_context) == "plant_image":
+            from app.services import prescription_upload_service as compat
+
             return run_plant_image_agent(
                 upload.original_filename,
                 upload.mime_type,
                 data,
                 user_context,
             )
-        return run_prescription_document_agent(
+            return compat.run_plant_image_agent(
+                upload.original_filename,
+                upload.mime_type,
+                data,
+                user_context,
+            )
+        from app.services import prescription_upload_service as compat
+
+        return compat.run_prescription_document_agent(
             upload.original_filename,
             upload.mime_type,
             data,

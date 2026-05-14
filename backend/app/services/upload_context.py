@@ -27,7 +27,7 @@ class UploadContextService:
         blocks: list[str] = []
         pending: list[str] = []
         for upload in upload_rows:
-            status = upload.status or "completed"
+            status = getattr(upload, "status", None) or "completed"
             if status != "completed":
                 pending.append(
                     f"{upload.original_filename} is still {status}; upload analysis is not ready yet."
