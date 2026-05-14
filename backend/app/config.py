@@ -52,6 +52,10 @@ class Settings(BaseSettings):
         "fda.gov,nih.gov,who.int,nlm.nih.gov,ncbi.nlm.nih.gov,medlineplus.gov"
     )
 
+    clerk_issuer: str = ""
+    clerk_audience: str = ""
+    clerk_jwks_url: str = ""
+
     chromadb_upsert_batch_size: int = 4500
 
 

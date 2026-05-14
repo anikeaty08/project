@@ -77,6 +77,7 @@ def _ensure_added_columns(engine) -> None:
     }
     additions = [
         ("chat_sessions", "owner_token_hash", type_map["string"]),
+        ("chat_sessions", "clerk_user_id", type_map["string"]),
         ("session_uploads", "status", type_map["string"]),
         ("session_uploads", "processing_error", type_map["text"]),
         ("session_uploads", "processed_at", type_map["datetime"]),
