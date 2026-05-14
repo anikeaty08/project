@@ -2,6 +2,10 @@
 
 Ayurveda / herb RAG with **session chat stored in PostgreSQL**, **smart retrieval** (dedicated query from a session agent), **ChromaDB** for vectors, **Redis** cache for query embeddings, and **Docker Compose** that runs **first-time vector ingestion** automatically, then starts the API and UI.
 
+## Docker build notes (PyTorch / “same install three times”)
+
+The API image installs **CPU-only PyTorch** from PyTorch’s wheel index so `docker compose build` stays much smaller and faster than the default Linux CUDA stack (often **2GB+** extra downloads). If a build stops with **`rpc error: code = Unavailable ... EOF`**, that is usually Docker Desktop or BuildKit dropping a very long layer; retry after freeing disk/RAM, or run `docker compose build backend` alone. **`vector-init`** and **`backend`** share the same image; Compose should build that layer once—seeing the same `pip install` again usually means a **failed build was retried** without cache.
+
 ## Quick start (Docker)
 
 1. Put your documents under `data/` (see [backend/README.md](backend/README.md) for ingest formats).
