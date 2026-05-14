@@ -80,6 +80,7 @@ services:
     volumes:
       - ./data:/data:ro
       - vector_store_data:/app/vector_store
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
