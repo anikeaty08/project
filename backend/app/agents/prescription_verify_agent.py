@@ -55,6 +55,13 @@ def _parse_json_obj(raw: str) -> dict[str, Any]:
     return json.loads(raw)
 
 
+def _format_result_line(r: dict[str, Any]) -> str:
+    url = str(r.get("url") or "")
+    title = str(r.get("title") or "")
+    content = str(r.get("content") or r.get("snippet") or "")
+    return f"- {title}\n  URL: {url}\n  Snippet: {content[:600]}"
+
+
 def run_prescription_verify_agent(
     *,
     search_query: str,
@@ -65,28 +72,49 @@ def run_prescription_verify_agent(
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY is not set")
 
-    trusted = list(_trusted_domain_set())
-    client_tv = TavilyClient(api_key=settings.tavily_api_key)
-    search = client_tv.search(
-        query=search_query[:400],
-        search_depth="advanced",
-        max_results=8,
-        include_domains=trusted if trusted else None,
-    )
-
-    results = search.get("results") or []
+    trusted_list = list(_trusted_domain_set())
     trusted_set = _trusted_domain_set()
+    client_tv = TavilyClient(api_key=settings.tavily_api_key)
+    q = search_query[:400]
+
+    trusted_results: list[dict[str, Any]] = []
+    if trusted_list:
+        t_search = client_tv.search(
+            query=q,
+            search_depth="advanced",
+            max_results=6,
+            include_domains=trusted_list,
+        )
+        trusted_results = t_search.get("results") or []
+
+    broad_search = client_tv.search(
+        query=q,
+        search_depth="advanced",
+        max_results=6,
+        include_domains=None,
+    )
+    broad_results = broad_search.get("results") or []
+
+    seen_urls: set[str] = set()
     trusted_blocks: list[str] = []
     other_blocks: list[str] = []
-    for r in results:
+
+    for r in trusted_results:
         url = str(r.get("url") or "")
-        title = str(r.get("title") or "")
-        content = str(r.get("content") or r.get("snippet") or "")
-        line = f"- {title}\n  URL: {url}\n  Snippet: {content[:600]}"
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        trusted_blocks.append(_format_result_line(r))
+
+    for r in broad_results:
+        url = str(r.get("url") or "")
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
         if _is_trusted_url(url, trusted_set):
-            trusted_blocks.append(line)
+            trusted_blocks.append(_format_result_line(r))
         else:
-            other_blocks.append(line)
+            other_blocks.append(_format_result_line(r))
 
     user_block = f"SEARCH_QUERY:\n{search_query}\n"
     if context_from_document:
@@ -102,7 +130,11 @@ def run_prescription_verify_agent(
     completion = client.chat.completions.create(
         model=settings.openai_chat_model,
         messages=[
-            {"role": "system", "content": VERIFY_SYSTEM + f"\nTRUSTED_DOMAINS: {', '.join(trusted)}"},
+            {
+                "role": "system",
+                "content": VERIFY_SYSTEM
+                + f"\nTRUSTED_DOMAINS: {', '.join(trusted_list) if trusted_list else '(none configured)'}",
+            },
             {"role": "user", "content": user_block},
         ],
         temperature=0.2,
@@ -135,7 +167,7 @@ def run_prescription_verify_agent(
     if not isinstance(out.get("other_citations"), list):
         out["other_citations"] = []
 
-    out["tavily_raw_result_count"] = len(results)
+    out["tavily_raw_result_count"] = len(trusted_results) + len(broad_results)
     return out
 
 
