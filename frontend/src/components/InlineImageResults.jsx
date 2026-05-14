@@ -74,6 +74,18 @@ export default function InlineImageResults({ assistantText }) {
     [key]
   );
 
+  if (phase === "loading" && key) {
+    return (
+      <div className="inline-unsplash inline-unsplash--loading" aria-busy="true" aria-label="Loading related photos">
+        <div className="inline-unsplash__row">
+          <div className="inline-unsplash__skeleton" />
+          <div className="inline-unsplash__skeleton" />
+          <div className="inline-unsplash__skeleton" />
+        </div>
+      </div>
+    );
+  }
+
   if (phase !== "ready" || !photos.length || !key) {
     return null;
   }
