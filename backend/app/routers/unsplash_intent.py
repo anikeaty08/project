@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.agents.unsplash_intent_agent import run_unsplash_intent_agent
+from app.llm.tasks import run_unsplash_intent_agent
 
 router = APIRouter(prefix="/unsplash", tags=["unsplash"])
 

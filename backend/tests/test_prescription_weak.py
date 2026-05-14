@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.agents.prescription_document_agent import is_parse_weak
+from app.llm.tasks import is_parse_weak
 from app.config import settings
 
 

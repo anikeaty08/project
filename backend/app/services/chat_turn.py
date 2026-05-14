@@ -7,14 +7,15 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agents.prescription_intent import is_prescription_related_message
-from app.agents.prescription_verify_agent import (
+from app.llm.tasks import (
+    is_prescription_related_message,
     run_prescription_verify_agent,
+    run_rag_answer_agent,
+    run_session_query_agent,
     verify_result_to_prompt_block,
 )
-from app.agents.rag_answer_agent import run_rag_answer_agent
-from app.agents.session_query_agent import run_session_query_agent
 from app.config import settings
+from app.memory import get_memory_store
 from app.models.chat import ChatMessage, ChatSession
 from app.models.session_upload import SessionUpload
 from app.rag import retrieve_context_merged
@@ -79,6 +80,8 @@ def run_chat_turn(
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    memory = get_memory_store()
+    session_summary = memory.get_summary(sess)
     upload_rows = _load_session_uploads(db, session_id, upload_ids)
 
     user_row = ChatMessage(
@@ -104,7 +107,7 @@ def run_chat_turn(
 
     retrieval_query, summary_delta = run_session_query_agent(
         trimmed,
-        sess.summary_text,
+        session_summary,
         user_content,
     )
 
@@ -127,9 +130,7 @@ def run_chat_turn(
                 search_query=search_q,
                 context_from_document=doc_ctx,
             )
-            supplement_parts.append(
-                "CHAT_TURN_WEB_VERIFICATION:\n" + verify_result_to_prompt_block(chat_verify)
-            )
+            supplement_parts.append(verify_result_to_prompt_block(chat_verify))
         except Exception:
             pass
 
@@ -137,16 +138,13 @@ def run_chat_turn(
 
     answer = run_rag_answer_agent(
         trimmed,
-        sess.summary_text,
+        session_summary,
         context_str,
         language,
         supplement_block=supplement,
     )
 
-    combined = ((sess.summary_text or "").strip() + "\n" + summary_delta).strip()
-    if len(combined) > settings.session_summary_max_chars:
-        combined = combined[-settings.session_summary_max_chars :]
-    sess.summary_text = combined or None
+    memory.merge_summary_delta(sess, summary_delta)
     sess.updated_at = datetime.now(timezone.utc)
 
     assistant_row = ChatMessage(

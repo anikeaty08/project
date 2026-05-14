@@ -62,3 +62,7 @@ From repo root: `docker compose --profile app up -d --build`. Backend bind-mount
 ## Redis cache
 
 With **`REDIS_URL`** set, **`embed_query`** results are cached for **`EMBEDDING_CACHE_TTL_SECONDS`** (default 86400). Bulk ingest does not use this cache.
+
+## LLM agents and context rendering
+
+Backend LLM behavior lives in separate Python agent modules under `app/llm/agents/`. Each agent owns its own prompt, input builder, and output handling; shared code only handles OpenAI calls, JSON parsing, and schema validation. Herb JSON records are rendered by `app/ingest/herb_formatter.py`, so changing labels or field order requires re-running ingest to refresh Chroma chunks.

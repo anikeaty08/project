@@ -10,6 +10,7 @@ import pymupdf
 import trafilatura
 
 from app.config import settings
+from app.ingest.herb_formatter import herb_record_to_document
 
 URL_RE = re.compile(r"https?://[^\s\)\]<>\"']+")
 
@@ -65,30 +66,6 @@ def read_plain_path(path: Path) -> str:
     if path.suffix.lower() == ".pdf":
         return read_pdf_text(path)
     return path.read_text(encoding="utf-8", errors="ignore")
-
-
-def herb_record_to_document(record: dict[str, Any]) -> str:
-    lines = [
-        f"Herb name: {record.get('name', '')}",
-        f"Reference link: {record.get('link', '')}",
-        f"Overview: {record.get('preview', '')}",
-    ]
-    if record.get("pacify"):
-        lines.append("Pacifies (doshas): " + ", ".join(str(x) for x in record["pacify"]))
-    if record.get("aggravate"):
-        lines.append("Aggravates (doshas): " + ", ".join(str(x) for x in record["aggravate"]))
-    lines.append(f"Balances all doshas (tridosha): {record.get('tridosha', '')}")
-    if record.get("rasa"):
-        lines.append("Rasa: " + ", ".join(str(x) for x in record["rasa"]))
-    if record.get("guna"):
-        lines.append("Guna: " + ", ".join(str(x) for x in record["guna"]))
-    if record.get("virya"):
-        lines.append(f"Virya: {record.get('virya')}")
-    if record.get("vipaka"):
-        lines.append(f"Vipaka: {record.get('vipaka')}")
-    if record.get("prabhav"):
-        lines.append("Prabhava / key actions: " + ", ".join(str(x) for x in record["prabhav"]))
-    return "\n".join(lines)
 
 
 def load_herb_documents(herb_json_path: Path) -> list[tuple[str, dict[str, Any]]]:

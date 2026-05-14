@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from app import chroma_store
-from app.agents.rag_answer_agent import run_rag_answer_agent
 from app.config import settings
 from app.embeddings import embed_query
+from app.llm.tasks import run_rag_answer_agent
 
 
 def _last_user_message(messages: list[dict[str, Any]]) -> str:

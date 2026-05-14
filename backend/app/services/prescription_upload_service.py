@@ -9,11 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import chroma_store
-from app.agents.prescription_document_agent import (
+from app.llm.tasks import (
     is_parse_weak,
     run_prescription_document_agent,
+    run_prescription_verify_agent,
 )
-from app.agents.prescription_verify_agent import run_prescription_verify_agent
 from app.chunking import chunk_text
 from app.config import settings
 from app.embeddings import embed_texts
