@@ -4,6 +4,7 @@ from collections.abc import Generator
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
@@ -56,3 +57,37 @@ def init_db() -> None:
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
+    _ensure_added_columns(engine)
+
+
+def _ensure_added_columns(engine) -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    dialect = engine.dialect.name
+
+    def has_column(table: str, column: str) -> bool:
+        if table not in existing_tables:
+            return False
+        return column in {c["name"] for c in inspector.get_columns(table)}
+
+    type_map = {
+        "string": "TEXT" if dialect == "sqlite" else "VARCHAR(128)",
+        "text": "TEXT",
+        "datetime": "TIMESTAMP" if dialect != "sqlite" else "DATETIME",
+    }
+    additions = [
+        ("chat_sessions", "owner_token_hash", type_map["string"]),
+        ("session_uploads", "status", type_map["string"]),
+        ("session_uploads", "processing_error", type_map["text"]),
+        ("session_uploads", "processed_at", type_map["datetime"]),
+        ("session_uploads", "trace_id", type_map["string"]),
+    ]
+    with engine.begin() as conn:
+        for table, column, col_type in additions:
+            if has_column(table, column):
+                continue
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+        if "session_uploads" in existing_tables and has_column("session_uploads", "status"):
+            conn.execute(
+                text("UPDATE session_uploads SET status = 'completed' WHERE status IS NULL")
+            )

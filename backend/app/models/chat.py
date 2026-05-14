@@ -18,6 +18,7 @@ class ChatSession(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    owner_token_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
