@@ -63,15 +63,15 @@ def _parse_json_obj(raw: str) -> dict[str, Any]:
     return json.loads(raw)
 
 
-def _default_parse() -> dict[str, Any]:
+def _default_parse(filename: str, text: str) -> dict[str, Any]:
     return {
         "medications": [],
         "doctor": "",
         "date": "",
-        "raw_notes": "",
-        "confidence": 0.0,
-        "retrieval_query": "",
-        "provenance": "none",
+        "raw_notes": text[:2000],
+        "confidence": 0.15,
+        "retrieval_query": (text or filename)[:500],
+        "provenance": "fallback",
     }
 
 
@@ -90,6 +90,23 @@ def _flatten_for_embedding(parsed: dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
+def _vision_parse(client: OpenAI, image_urls: list[str]) -> dict[str, Any]:
+    content: list[dict[str, Any]] = [{"type": "text", "text": VISION_SCHEMA_PROMPT}]
+    for url in image_urls:
+        content.append({"type": "image_url", "image_url": {"url": url}})
+    completion = client.chat.completions.create(
+        model=settings.openai_vision_model,
+        messages=[{"role": "user", "content": content}],
+        temperature=0.1,
+        response_format={"type": "json_object"},
+    )
+    raw = completion.choices[0].message.content or "{}"
+    try:
+        return _parse_json_obj(raw)
+    except json.JSONDecodeError:
+        return _default_parse("", "")
+
+
 def run_prescription_document_agent(
     filename: str,
     mime_type: str,
@@ -99,19 +116,18 @@ def run_prescription_document_agent(
         raise ValueError("OPENAI_API_KEY is not set")
 
     mime = (mime_type or "").split(";")[0].strip().lower()
-    provenance = "text_extract"
     text = ""
-
     if mime == "application/pdf":
         text = _extract_pdf_text(file_bytes)
     elif mime in ("text/plain", "text/markdown"):
         text = _extract_plain_text(file_bytes)
 
-    weak = len(text) < settings.prescription_extraction_min_chars
-    client = OpenAI(api_key=settings.openai_api_key)
+    weak_text = len(text.strip()) < settings.prescription_extraction_min_chars
 
     image_urls: list[str] = []
-    if mime == "application/pdf" and weak:
+    provenance = "text_extract"
+
+    if mime == "application/pdf" and weak_text:
         image_urls = _pdf_pages_as_png_base64(file_bytes, settings.vision_pdf_max_pages)
         provenance = "vision"
     elif mime.startswith("image/"):
@@ -119,53 +135,26 @@ def run_prescription_document_agent(
         image_urls = [f"data:{mime};base64,{b64}"]
         provenance = "vision"
         text = ""
-        weak = True
 
-    if not weak and text:
-        parsed = {
-            "medications": [],
-            "doctor": "",
-            "date": "",
-            "raw_notes": text[:8000],
-            "confidence": 0.75,
-            "retrieval_query": text[:500],
-            "provenance": provenance,
-        }
-        # Light structured pass on long text only (optional mini call) — skip for speed; use raw for retrieval_query
-        if len(parsed["retrieval_query"]) < 40:
-            weak = True
+    client = OpenAI(api_key=settings.openai_api_key)
 
-    if weak and image_urls:
-        content: list[dict[str, Any]] = [{"type": "text", "text": VISION_SCHEMA_PROMPT}]
-        for url in image_urls:
-            content.append({"type": "image_url", "image_url": {"url": url}})
-        completion = client.chat.completions.create(
-            model=settings.openai_vision_model,
-            messages=[{"role": "user", "content": content}],
-            temperature=0.1,
-            response_format={"type": "json_object"},
-        )
-        raw = completion.choices[0].message.content or "{}"
-        try:
-            parsed = _parse_json_obj(raw)
-        except json.JSONDecodeError:
-            parsed = _default_parse()
-        parsed["provenance"] = "vision"
-    elif weak and not image_urls:
-        parsed = _default_parse()
-        parsed["raw_notes"] = text[:2000]
-        parsed["retrieval_query"] = text[:500] if text else filename
+    if image_urls:
+        parsed = _vision_parse(client, image_urls)
         parsed["provenance"] = provenance
-    else:
+    elif not weak_text and text:
         parsed = {
             "medications": [],
             "doctor": "",
             "date": "",
             "raw_notes": text[:8000],
-            "confidence": 0.7,
+            "confidence": 0.72,
             "retrieval_query": text[:600],
             "provenance": provenance,
         }
+        if len((parsed.get("retrieval_query") or "").strip()) < 40:
+            parsed = _default_parse(filename, text)
+    else:
+        parsed = _default_parse(filename, text)
 
     for key in ("medications", "doctor", "date", "raw_notes", "confidence", "retrieval_query"):
         if key not in parsed:
