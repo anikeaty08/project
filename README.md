@@ -71,7 +71,7 @@ A shared secret so random clients cannot call **`POST /ingest/`** (re-indexing i
 ## Local development (no Docker UI)
 
 - Start Postgres + Redis: `docker compose up -d postgres redis`
-- Backend: see [backend/README.md](backend/README.md)
+- Backend: see [backend/README.md](backend/README.md) — you can delete `backend/.venv` if you only use Docker; on Windows, stop `uvicorn`/Python first or run `.\scripts\remove-backend-venv.ps1`
 - Frontend: see [frontend/README.md](frontend/README.md)
 
 ## Repo layout

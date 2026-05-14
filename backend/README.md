@@ -7,6 +7,22 @@ Python API: RAG retrieval (Chroma + local sentence-transformers), dual `gpt-4o-m
 - Python 3.12+ recommended  
 - For local DB: Docker `postgres` + `redis` from repo root (`docker compose up -d postgres redis`)
 
+### Docker-only: you do not need `backend/.venv`
+
+The API runs inside the **Docker image**; `backend/.venv` is only for running Python on your PC.
+
+To delete `backend/.venv`, **stop anything using it** first (otherwise Windows locks `.dll` / `.pyd` files):
+
+1. Stop **uvicorn** / **Python** terminals pointed at this project (and Cursor terminals whose cwd is `backend`).
+2. In Task Manager, end stray **Python** processes if needed.
+3. Run from repo root:
+
+   ```powershell
+   .\scripts\remove-backend-venv.ps1
+   ```
+
+   Or delete `backend\.venv` in File Explorer after closing those processes.
+
 ## Setup
 
 ```powershell
