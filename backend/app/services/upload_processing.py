@@ -19,12 +19,6 @@ class UploadProcessingService:
         if self.route_kind(upload.mime_type, user_context) == "plant_image":
             from app.services import prescription_upload_service as compat
 
-            return run_plant_image_agent(
-                upload.original_filename,
-                upload.mime_type,
-                data,
-                user_context,
-            )
             return compat.run_plant_image_agent(
                 upload.original_filename,
                 upload.mime_type,
