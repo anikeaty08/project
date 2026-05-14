@@ -1,3 +1,10 @@
+# Full stack: Postgres + Redis → one-shot vector-init (first ingest) → backend → frontend.
+# OPENAI_API_KEY may be empty; API still starts (chat returns errors until you set it).
+
+x-backend-build: &backend_build
+  context: .
+  dockerfile: backend/Dockerfile
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -16,5 +23,91 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - rag_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  vector-init:
+    <<: *backend_build
+    image: rag-backend:latest
+    container_name: rag-vector-init
+    environment:
+      DATA_DIR: /data
+      CHROMA_PATH: /app/vector_store
+      REDIS_URL: redis://redis:6379/0
+      AUTO_INGEST_URL_LIMIT: ${AUTO_INGEST_URL_LIMIT:-0}
+    volumes:
+      - ./data:/data:ro
+      - vector_store_data:/app/vector_store
+    command: ["python", "-m", "app.docker_vector_init"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    <<: *backend_build
+    image: rag-backend:latest
+    container_name: rag-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://rag:rag@postgres:5432/ragchat
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      CHROMA_PATH: /app/vector_store
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      INGEST_TOKEN: ${INGEST_TOKEN:-rag-dev-ingest-xk9m2p7q}
+    volumes:
+      - ./data:/data:ro
+      - vector_store_data:/app/vector_store
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vector-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'curl -sf http://127.0.0.1:8000/health >/dev/null || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_INGEST_TOKEN: ${INGEST_TOKEN:-rag-dev-ingest-xk9m2p7q}
+    image: rag-frontend:latest
+    container_name: rag-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
 volumes:
   rag_pgdata:
+  rag_redisdata:
+  vector_store_data:
