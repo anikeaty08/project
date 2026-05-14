@@ -1,0 +1,15 @@
+**/.venv
+**/venv
+**/node_modules
+**/dist
+**/chroma_db
+**/vector_store
+**/__pycache__
+**/*.pyc
+.git
+.env
+**/.env
+!**/.env.example
+*.log
+.cursor
+data/
