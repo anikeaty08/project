@@ -61,7 +61,7 @@ export default function Composer({ onSend, disabled }) {
                 aria-label={`Remove ${f.name}`}
                 onClick={() => removeFile(i)}
               >
-                ×
+                x
               </button>
             </span>
           ))}
@@ -83,7 +83,7 @@ export default function Composer({ onSend, disabled }) {
           rows={2}
           value={value}
           disabled={disabled}
-          placeholder="Message… (Enter to send, Shift+Enter for newline)"
+          placeholder="Message... (Enter to send, Shift+Enter for newline)"
           aria-label="Message"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
