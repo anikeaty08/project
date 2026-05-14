@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { deleteJson, getJson, postJson, postSessionUploads } from "../api/client.js";
 
 const SESSION_KEY = "rag_chat_session_id";
+const OWNER_PREFIX = "rag_chat_owner_";
+
+function ownerKey(sessionId) {
+  return `${OWNER_PREFIX}${sessionId}`;
+}
 
 export function useChatSession() {
   const [booting, setBooting] = useState(true);
@@ -14,13 +19,20 @@ export function useChatSession() {
   const [language, setLanguage] = useState("");
   const [lastSources, setLastSources] = useState([]);
 
+  const ownerHeaders = useCallback((sid = sessionId) => {
+    const token = sid ? localStorage.getItem(ownerKey(sid)) : "";
+    return token ? { "X-Session-Owner": token } : {};
+  }, [sessionId]);
+
   const refreshSessions = useCallback(async () => {
     const list = await getJson("/sessions/");
     setSessions(list);
   }, []);
 
   const loadMessages = useCallback(async (sid) => {
-    const msgs = await getJson(`/sessions/${sid}/messages`);
+    const token = localStorage.getItem(ownerKey(sid));
+    const headers = token ? { "X-Session-Owner": token } : {};
+    const msgs = await getJson(`/sessions/${sid}/messages`, headers);
     setMessages(msgs);
   }, []);
 
@@ -44,6 +56,9 @@ export function useChatSession() {
         }
         const created = await postJson("/sessions/", {});
         localStorage.setItem(SESSION_KEY, created.id);
+        if (created.owner_token) {
+          localStorage.setItem(ownerKey(created.id), created.owner_token);
+        }
         if (!cancelled) {
           setSessionId(created.id);
           setMessages([]);
@@ -67,6 +82,9 @@ export function useChatSession() {
     try {
       const created = await postJson("/sessions/", {});
       localStorage.setItem(SESSION_KEY, created.id);
+      if (created.owner_token) {
+        localStorage.setItem(ownerKey(created.id), created.owner_token);
+      }
       setSessionId(created.id);
       setMessages([]);
       setLastSources([]);
@@ -95,11 +113,12 @@ export function useChatSession() {
       if (!sid) return;
       setError("");
       try {
-        await deleteJson(`/sessions/${sid}`);
+        await deleteJson(`/sessions/${sid}`, ownerHeaders(sid));
         const nextSessions = sessions.filter((s) => s.id !== sid);
         setSessions(nextSessions);
         if (sid === sessionId) {
           localStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(ownerKey(sid));
           if (nextSessions.length > 0) {
             const nextId = nextSessions[0].id;
             localStorage.setItem(SESSION_KEY, nextId);
@@ -108,6 +127,9 @@ export function useChatSession() {
           } else {
             const created = await postJson("/sessions/", {});
             localStorage.setItem(SESSION_KEY, created.id);
+            if (created.owner_token) {
+              localStorage.setItem(ownerKey(created.id), created.owner_token);
+            }
             setSessionId(created.id);
             setMessages([]);
           }
@@ -135,14 +157,23 @@ export function useChatSession() {
         const lang = language.trim() || null;
         let uploadIds = null;
         if (list.length > 0) {
-          const uploaded = await postSessionUploads(sessionId, list, content);
+          const uploaded = await postSessionUploads(
+            sessionId,
+            list,
+            content,
+            ownerHeaders()
+          );
           uploadIds = uploaded.map((u) => u.id);
         }
-        const data = await postJson(`/sessions/${sessionId}/chat/`, {
-          content,
-          language: lang,
-          upload_ids: uploadIds,
-        });
+        const data = await postJson(
+          `/sessions/${sessionId}/chat/`,
+          {
+            content,
+            language: lang,
+            upload_ids: uploadIds,
+          },
+          ownerHeaders()
+        );
         setLastSources(data.sources || []);
         if (data.user_message && data.assistant_message) {
           setMessages((prev) => [
@@ -160,7 +191,7 @@ export function useChatSession() {
         setLoading(false);
       }
     },
-    [sessionId, loading, language, loadMessages, refreshSessions]
+    [sessionId, loading, language, loadMessages, refreshSessions, ownerHeaders]
   );
 
   const runIngest = useCallback(async () => {
@@ -195,5 +226,6 @@ export function useChatSession() {
     sendMessage,
     runIngest,
     refreshSessions,
+    ownerHeaders,
   };
 }
