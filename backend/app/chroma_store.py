@@ -33,9 +33,19 @@ def upsert_chunks(
     metadatas: list[dict[str, Any]],
     embeddings: list[list[float]],
 ) -> None:
+    if not documents:
+        return
     col = get_collection()
-    ids = [str(uuid.uuid4()) for _ in documents]
-    col.upsert(ids=ids, documents=documents, metadatas=metadatas, embeddings=embeddings)
+    batch = max(1, settings.chromadb_upsert_batch_size)
+    for start in range(0, len(documents), batch):
+        end = start + batch
+        chunk_docs = documents[start:end]
+        chunk_meta = metadatas[start:end]
+        chunk_emb = embeddings[start:end]
+        ids = [str(uuid.uuid4()) for _ in chunk_docs]
+        col.upsert(
+            ids=ids, documents=chunk_docs, metadatas=chunk_meta, embeddings=chunk_emb
+        )
 
 
 def query_collection(
