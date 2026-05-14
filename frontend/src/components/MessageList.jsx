@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import InlineImageResults from "./InlineImageResults.jsx";
-import { apiUrl } from "../api/client.js";
+import { apiUrlWithOwner } from "../api/client.js";
 
 function formatTime(iso) {
   if (!iso) return "";
@@ -14,7 +14,7 @@ function formatTime(iso) {
   }
 }
 
-export default function MessageList({ messages, loading }) {
+export default function MessageList({ messages, loading, ownerToken }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function MessageList({ messages, loading }) {
                   <a
                     key={a.upload_id || a.url}
                     className="bubble__attachment"
-                    href={apiUrl(a.url)}
+                    href={apiUrlWithOwner(a.url, ownerToken)}
                     target="_blank"
                     rel="noreferrer"
                     title={a.filename}
@@ -63,7 +63,7 @@ export default function MessageList({ messages, loading }) {
                     {String(a.mime_type || "").startsWith("image/") ? (
                       <img
                         className="bubble__attachment-img"
-                        src={apiUrl(a.url)}
+                        src={apiUrlWithOwner(a.url, ownerToken)}
                         alt={a.filename || "Uploaded image"}
                       />
                     ) : (

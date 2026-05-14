@@ -24,6 +24,7 @@ export default function App() {
     deleteSession,
     sendMessage,
     runIngest,
+    ownerHeaders,
   } = useChatSession();
 
   if (booting) {
@@ -65,7 +66,11 @@ export default function App() {
           </div>
         ) : null}
         <div className="chat-panel">
-          <MessageList messages={messages} loading={loading} />
+          <MessageList
+            messages={messages}
+            loading={loading}
+            ownerToken={ownerHeaders()["X-Session-Owner"]}
+          />
           <SourcePanel sources={lastSources} />
           <Composer onSend={sendMessage} disabled={loading} />
         </div>

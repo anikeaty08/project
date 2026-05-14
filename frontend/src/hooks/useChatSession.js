@@ -140,7 +140,7 @@ export function useChatSession() {
         setError(e.message || String(e));
       }
     },
-    [sessionId, sessions, loadMessages, refreshSessions]
+    [sessionId, sessions, loadMessages, refreshSessions, ownerHeaders]
   );
 
   const sendMessage = useCallback(
