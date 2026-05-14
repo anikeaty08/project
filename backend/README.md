@@ -28,10 +28,13 @@ To delete `backend/.venv`, **stop anything using it** first (otherwise Windows l
 ```powershell
 cd backend
 python -m venv .venv
+.\.venv\Scripts\pip install "torch>=2.2.0" --index-url https://download.pytorch.org/whl/cpu
 .\.venv\Scripts\pip install -r requirements.txt
 copy .env.example .env
 # Edit .env: OPENAI_API_KEY, DATABASE_URL, optional REDIS_URL
 ```
+
+On **Linux/macOS**, run the same **`pip install "torch>=2.2.0" --index-url https://download.pytorch.org/whl/cpu`** before `pip install -r requirements.txt` so you avoid the default CUDA PyTorch wheel. If you skip that step, `pip` may download the large NVIDIA-backed build.
 
 ## Run API
 
