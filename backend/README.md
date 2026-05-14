@@ -45,13 +45,17 @@ Chroma writes under `CHROMA_PATH` (default `./vector_store`). Large runs use **b
 
 ## Docker
 
+From the **repo root**, `docker compose up -d --build` runs **`vector-init`** (first-time ingest if needed), then **`backend`**, then **`frontend`**. Ingest does **not** require `OPENAI_API_KEY`; chat does.
+
+See the root [README.md](../README.md) for `AUTO_INGEST_URL_LIMIT`, volumes, and re-indexing.
+
 Build is defined in [Dockerfile](Dockerfile) with context at the **repo root** (see root `docker-compose.yml`).
 
 Environment (typical):
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | Required for chat |
+| `OPENAI_API_KEY` | Required for chat only; API starts without it |
 | `DATABASE_URL` | Postgres SQLAlchemy URL |
 | `REDIS_URL` | Optional, e.g. `redis://localhost:6379/0` |
 | `DATA_DIR` | Folder to read for ingest (Docker: `/data`) |
