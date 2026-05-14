@@ -35,6 +35,10 @@ def is_prescription_related_message(text: str) -> bool:
     return prescription_intent.run(text)
 
 
+def is_prescription_keyword_match(text: str) -> bool:
+    return prescription_intent.keyword_match(text)
+
+
 def run_prescription_document_agent(
     filename: str,
     mime_type: str,

@@ -50,7 +50,7 @@ class TestPlantUploadRouting(unittest.TestCase):
                 with patch.object(upload_service, "_upsert_upload_to_chroma"):
                     with patch.object(
                         upload_service,
-                        "is_prescription_related_message",
+                        "is_prescription_keyword_match",
                         return_value=False,
                     ) as intent:
                         with patch.object(
@@ -89,7 +89,7 @@ class TestPlantUploadRouting(unittest.TestCase):
                 with patch.object(upload_service, "_upsert_upload_to_chroma"):
                     with patch.object(
                         upload_service,
-                        "is_prescription_related_message",
+                        "is_prescription_keyword_match",
                         return_value=True,
                     ):
                         with patch.object(

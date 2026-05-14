@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app import chroma_store
 from app.llm.tasks import (
     is_parse_weak,
-    is_prescription_related_message,
+    is_prescription_keyword_match,
     run_plant_image_agent,
     run_prescription_document_agent,
     run_prescription_verify_agent,
@@ -105,7 +105,7 @@ def save_and_process_upload(
     dest_path.write_bytes(file_bytes)
 
     is_image = mime.startswith("image/")
-    use_prescription_parser = (not is_image) or is_prescription_related_message(
+    use_prescription_parser = (not is_image) or is_prescription_keyword_match(
         user_context or ""
     )
     if use_prescription_parser:
