@@ -1,46 +1,48 @@
 # Multilingual RAG (FastAPI + React + Chroma + Postgres + Redis)
 
-Ayurveda / herb RAG with **session chat stored in PostgreSQL**, **smart retrieval** (dedicated query from a session agent), **ChromaDB** for vectors, optional **Redis** cache for query embeddings, and a **Docker Compose** stack for Postgres, Redis, API, UI, and one-off ingestion.
+Ayurveda / herb RAG with **session chat stored in PostgreSQL**, **smart retrieval** (dedicated query from a session agent), **ChromaDB** for vectors, **Redis** cache for query embeddings, and **Docker Compose** that runs **first-time vector ingestion** automatically, then starts the API and UI.
 
 ## Quick start (Docker)
 
 1. Put your documents under `data/` (see [backend/README.md](backend/README.md) for ingest formats).
 
-2. Create a **project root** `.env` (Compose reads this for variable substitution):
+2. Create a **project root** `.env` (optional — Compose substitutes variables from here):
 
    ```env
-   OPENAI_API_KEY=sk-...
+   # Optional until you use chat; API and UI still start without it
+   OPENAI_API_KEY=
+
+   # First auto-ingest: 0 = skip Linkss.txt URL downloads (fast). Use "all" to fetch every URL.
+   AUTO_INGEST_URL_LIMIT=0
    ```
 
-3. Start core services:
+3. Start everything (ingest runs first on a **fresh** `vector_store` volume, then backend, then frontend):
 
    ```bash
    docker compose up -d --build
    ```
 
+   - **`vector-init`** one-shot: if there is no marker and Chroma is empty, it runs ingestion (no OpenAI key required), then exits. If the volume was already populated or the marker exists, it skips ingest.
+   - **`backend`** starts only after `vector-init` completes successfully (still starts if `OPENAI_API_KEY` is empty).
+   - **`frontend`** starts only after the backend passes its health check.
+
    - **API:** http://localhost:8000/docs  
    - **UI:** http://localhost:8080 (Nginx proxies `/sessions`, `/chat`, `/ingest`, `/health` to the API)
 
-4. **Build the vector index** (uses the same `backend` image and `vector_store_data` volume):
-
-   ```bash
-   docker compose run --rm backend python -m app.ingest_cli --clear
-   ```
-
-   To index herbs and files only (skip downloading every URL in `Linkss.txt`):
+4. **Manual re-index** (optional, same image as the API):
 
    ```bash
    docker compose run --rm backend python -m app.ingest_cli --clear --url-limit 0
    ```
 
-5. **Fresh vectors only:** delete local folders `backend/chroma_db` or `backend/vector_store` if you still have an old index, or remove the Docker volume:
+5. **Force first-time ingest again:** remove the Docker volume (or delete `.vector_ingest_done` inside the volume):
 
    ```bash
    docker compose down
    docker volume rm project_vector_store_data
    ```
 
-   (Volume name may be prefixed with your project directory name, e.g. `project_vector_store_data`. Use `docker volume ls` to find it.)
+   (Prefix may match your folder name; use `docker volume ls`.)
 
 ## Redis
 
@@ -60,6 +62,7 @@ A shared secret so random clients cannot call **`POST /ingest/`** (re-indexing i
 
 | Service    | Port (host) | Purpose                          |
 |-----------|-------------|----------------------------------|
+| vector-init | (one-shot) | First-time Chroma ingest; exits before API starts |
 | postgres  | 5432        | Chat sessions + messages         |
 | redis     | 6379        | Query-embedding cache (API uses in Docker) |
 | backend   | 8000        | FastAPI                          |
