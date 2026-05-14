@@ -1,6 +1,6 @@
 # Backend (FastAPI)
 
-Python API: RAG retrieval (Chroma + local sentence-transformers), dual `gpt-4o-mini` agents (session query + grounded answer), PostgreSQL chat history, optional Redis embedding cache.
+Python API: RAG retrieval (Chroma + **FastEmbed** / ONNX embeddings, no PyTorch), dual `gpt-4o-mini` agents (session query + grounded answer), PostgreSQL chat history, optional Redis embedding cache.
 
 ## Requirements
 
