@@ -1,9 +1,5 @@
-# Full stack: Postgres + Redis → one-shot vector-init (first ingest) → backend → frontend.
-# OPENAI_API_KEY may be empty; API still starts (chat returns errors until you set it).
-
-x-backend-build: &backend_build
-  context: .
-  dockerfile: backend/Dockerfile
+# Full stack: Postgres + Redis → vector-init (first ingest) → backend → frontend.
+# OPENAI_API_KEY may be empty; API still starts (chat needs the key later).
 
 services:
   postgres:
@@ -42,7 +38,9 @@ services:
       retries: 5
 
   vector-init:
-    <<: *backend_build
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     image: rag-backend:latest
     container_name: rag-vector-init
     environment:
@@ -60,7 +58,9 @@ services:
     restart: "no"
 
   backend:
-    <<: *backend_build
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     image: rag-backend:latest
     container_name: rag-backend
     ports:
