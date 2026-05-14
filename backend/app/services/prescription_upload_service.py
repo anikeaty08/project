@@ -1,49 +1,15 @@
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import chroma_store
-from app.llm.tasks import (
-    is_parse_weak,
-    is_prescription_keyword_match,
-    run_plant_image_agent,
-    run_prescription_document_agent,
-    run_prescription_verify_agent,
-)
-from app.chunking import chunk_text
-from app.config import settings
-from app.embeddings import embed_texts
-from app.models.chat import ChatSession
 from app.models.session_upload import SessionUpload
-
-_MAX_UPLOADS_PER_SESSION = 80
-
-_ALLOWED_MIME = frozenset(
-    {
-        "application/pdf",
-        "text/plain",
-        "text/markdown",
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-    }
-)
-
-
-def _validate_mime(mime: str) -> str:
-    m = (mime or "application/octet-stream").split(";")[0].strip().lower()
-    if m not in _ALLOWED_MIME:
-        raise HTTPException(
-            status_code=415,
-            detail=f"Unsupported file type: {m}. Allowed: {', '.join(sorted(_ALLOWED_MIME))}",
-        )
-    return m
+from app.services.upload_indexing import UploadIndexingService
+from app.services.upload_processing import UploadProcessingService
+from app.services.upload_storage import UploadStorageService
+from app.services.upload_verification import UploadVerificationService
 
 
 def _upsert_upload_to_chroma(
@@ -52,21 +18,59 @@ def _upsert_upload_to_chroma(
     original_filename: str,
     flat_text: str,
 ) -> None:
-    chunks = chunk_text(flat_text, settings.chunk_size, settings.chunk_overlap)
-    if not chunks:
-        return
-    texts = [c.text for c in chunks]
-    vectors = embed_texts(texts, batch_size=32)
-    metadatas: list[dict[str, Any]] = [
-        {
-            "source": original_filename,
-            "source_type": "upload",
-            "session_id": str(session_id),
-            "upload_id": str(upload_id),
-        }
-        for _ in texts
-    ]
-    chroma_store.upsert_chunks(texts, metadatas, vectors)
+    UploadIndexingService().index_parse(
+        session_id,
+        upload_id,
+        original_filename,
+        {"flat_text": flat_text},
+    )
+
+
+def save_upload_queued(
+    db: Session,
+    session_id: uuid.UUID,
+    original_filename: str,
+    mime_type: str,
+    file_bytes: bytes,
+) -> SessionUpload:
+    return UploadStorageService().create_upload_row(
+        db,
+        session_id,
+        original_filename,
+        mime_type,
+        file_bytes,
+        status="queued",
+    )
+
+
+def process_existing_upload(
+    db: Session,
+    upload: SessionUpload,
+    user_context: str | None = None,
+) -> SessionUpload:
+    upload.status = "processing"
+    upload.processing_error = None
+    db.commit()
+    db.refresh(upload)
+    try:
+        parse: dict[str, Any] = UploadProcessingService().process(upload, user_context)
+        verify = UploadVerificationService().verify_if_needed(upload, parse, user_context)
+        UploadIndexingService().index_parse(
+            upload.session_id,
+            upload.id,
+            upload.original_filename,
+            parse,
+        )
+        upload.parse_result_json = parse
+        upload.verify_result_json = verify
+        upload.status = "completed"
+        db.commit()
+        db.refresh(upload)
+        return upload
+    except Exception:
+        upload.status = "failed"
+        db.commit()
+        raise
 
 
 def save_and_process_upload(
@@ -77,71 +81,12 @@ def save_and_process_upload(
     file_bytes: bytes,
     user_context: str | None = None,
 ) -> SessionUpload:
-    if len(file_bytes) > settings.max_upload_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File exceeds max size of {settings.max_upload_mb} MB",
-        )
-
-    sess = db.get(ChatSession, session_id)
-    if sess is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    n_uploads = db.scalar(
-        select(func.count()).select_from(SessionUpload).where(
-            SessionUpload.session_id == session_id
-        )
-    ) or 0
-    if n_uploads >= _MAX_UPLOADS_PER_SESSION:
-        raise HTTPException(status_code=429, detail="Too many uploads for this session")
-
-    mime = _validate_mime(mime_type)
-    upload_id = uuid.uuid4()
-    safe_name = Path(original_filename).name[:240] or "upload.bin"
-    rel_dir = Path(str(session_id)) / str(upload_id)
-    dest_dir = settings.upload_dir / rel_dir
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / safe_name
-    dest_path.write_bytes(file_bytes)
-
-    is_image = mime.startswith("image/")
-    use_prescription_parser = (not is_image) or is_prescription_keyword_match(
-        user_context or ""
+    row = UploadStorageService().create_upload_row(
+        db,
+        session_id,
+        original_filename,
+        mime_type,
+        file_bytes,
+        status="processing",
     )
-    if use_prescription_parser:
-        parse = run_prescription_document_agent(safe_name, mime, file_bytes)
-    else:
-        parse = run_plant_image_agent(safe_name, mime, file_bytes, user_context)
-
-    verify: dict[str, Any] | None = None
-    if use_prescription_parser and is_parse_weak(parse) and settings.tavily_api_key:
-        try:
-            q = str(parse.get("retrieval_query") or parse.get("raw_notes") or safe_name)[:400]
-            verify = run_prescription_verify_agent(
-                search_query=q,
-                context_from_document=str(parse.get("flat_text") or "")[:4000],
-            )
-        except Exception:
-            verify = {
-                "error": "verify_failed",
-                "limitations": "Tavily or synthesis failed.",
-            }
-
-    row = SessionUpload(
-        id=upload_id,
-        session_id=session_id,
-        storage_path=str(dest_path.resolve()),
-        original_filename=safe_name,
-        mime_type=mime,
-        parse_result_json=parse,
-        verify_result_json=verify,
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-
-    flat = str(parse.get("flat_text") or "")
-    if flat.strip():
-        _upsert_upload_to_chroma(session_id, upload_id, safe_name, flat)
-
-    return row
+    return process_existing_upload(db, row, user_context)
