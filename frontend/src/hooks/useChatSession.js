@@ -91,16 +91,26 @@ export function useChatSession() {
   );
 
   const sendMessage = useCallback(
-    async (text) => {
-      const trimmed = text.trim();
-      if (!trimmed || !sessionId || loading) return;
+    async (text, files = []) => {
+      const list = Array.isArray(files) ? files : [];
+      const trimmed = (text || "").trim();
+      const fallback =
+        list.length > 0 ? "Please help me with the attached file(s)." : "";
+      const content = trimmed || fallback;
+      if (!content || !sessionId || loading) return;
       setError("");
       setLoading(true);
       try {
         const lang = language.trim() || null;
+        let uploadIds = null;
+        if (list.length > 0) {
+          const uploaded = await postSessionUploads(sessionId, list);
+          uploadIds = uploaded.map((u) => u.id);
+        }
         const data = await postJson(`/sessions/${sessionId}/chat/`, {
-          content: trimmed,
+          content,
           language: lang,
+          upload_ids: uploadIds,
         });
         setLastSources(data.sources || []);
         await loadMessages(sessionId);
