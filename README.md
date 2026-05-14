@@ -2,9 +2,11 @@
 
 Ayurveda / herb RAG with **session chat stored in PostgreSQL**, **smart retrieval** (dedicated query from a session agent), **ChromaDB** for vectors, **Redis** cache for query embeddings, and **Docker Compose** that runs **first-time vector ingestion** automatically, then starts the API and UI.
 
-## Docker build notes (PyTorch / “same install three times”)
+## Docker build notes (large installs / `EOF` errors)
 
-The API image installs **CPU-only PyTorch** from PyTorch’s wheel index so `docker compose build` stays much smaller and faster than the default Linux CUDA stack (often **2GB+** extra downloads). If a build stops with **`rpc error: code = Unavailable ... EOF`**, that is usually Docker Desktop or BuildKit dropping a very long layer; retry after freeing disk/RAM, or run `docker compose build backend` alone. **`vector-init`** and **`backend`** share the same image; Compose should build that layer once—seeing the same `pip install` again usually means a **failed build was retried** without cache.
+Embeddings use **FastEmbed** (downloads a compact ONNX model on first run, not multi‑gigabyte PyTorch CUDA wheels). If a build stops with **`rpc error: code = Unavailable ... EOF`**, that is usually Docker Desktop or BuildKit dropping a long layer; retry after freeing disk/RAM, or run `docker compose build backend` alone. **`vector-init`** and **`backend`** share the same image; Compose should build that layer once—seeing the same `pip install` again usually means a **failed build was retried** without cache.
+
+**Changing `EMBEDDING_MODEL`:** vectors live in Chroma; switch models only after **`POST /ingest/` with clear** (or delete the Chroma volume) so dimensions and vector space stay consistent.
 
 ## Quick start (Docker)
 
