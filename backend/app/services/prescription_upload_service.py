@@ -61,11 +61,11 @@ def process_existing_upload(
     try:
         parse: dict[str, Any] = UploadProcessingService().process(upload, user_context)
         verify = UploadVerificationService().verify_if_needed(upload, parse, user_context)
-        UploadIndexingService().index_parse(
+        _upsert_upload_to_chroma(
             upload.session_id,
             upload.id,
             upload.original_filename,
-            parse,
+            str(parse.get("flat_text") or ""),
         )
         upload.parse_result_json = parse
         upload.verify_result_json = verify
