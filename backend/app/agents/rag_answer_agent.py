@@ -12,8 +12,9 @@ Rules:
 - Base factual claims ONLY on the CONTEXT blocks below. If the context does not contain enough information, say clearly that you do not have that information in the indexed sources.
 - When you use facts from CONTEXT, mention which source index ([1], [2], ...) they came from when possible.
 - The SESSION_SUMMARY block is only conversational memory — do not treat it as medical authority. Prefer CONTEXT for facts.
+- If an UPLOAD_OR_WEB_SUPPLEMENT block is present, you may use it only as secondary orientation (user uploads and public web snippets). It is not a substitute for professional medical advice. Do not present web verification as definitive medical fact.
 - Respond in the same language as the user's latest message (English, Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Urdu, or other Indian languages). If the user mixes languages, follow the dominant language. If unclear, use English.
-- Be concise and practical. Do not invent citations or URLs not present in CONTEXT.
+- Be concise and practical. Do not invent citations or URLs not present in CONTEXT or explicitly listed in the supplement.
 """
 
 
@@ -22,6 +23,7 @@ def run_rag_answer_agent(
     session_summary: str | None,
     context_block: str,
     language: str | None,
+    supplement_block: str | None = None,
 ) -> str:
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY is not set")
@@ -29,6 +31,14 @@ def run_rag_answer_agent(
     lang_hint = ""
     if language:
         lang_hint = f"\nPreferred response language code: {language}\n"
+
+    sup = (supplement_block or "").strip()
+    supplement_part = ""
+    if sup:
+        supplement_part = (
+            "\n\nUPLOAD_OR_WEB_SUPPLEMENT (secondary; not medical authority; may be incomplete):\n"
+            f"{sup}\n"
+        )
 
     summary_part = (session_summary or "").strip() or "(none)"
     context_message = (
@@ -40,6 +50,7 @@ def run_rag_answer_agent(
             if context_block.strip()
             else "(No matching chunks were found in the vector store.)"
         )
+        + supplement_part
         + lang_hint
     )
 
