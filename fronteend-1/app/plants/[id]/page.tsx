@@ -40,6 +40,16 @@ export default function PlantDetailPage({
     setIsVisible(true);
   }, []);
 
+  // Auto-rotate images every 4 seconds
+  useEffect(() => {
+    if (!plant || plant.images.length <= 1) return;
+    const interval = setInterval(() => {
+      setImgLoaded(false);
+      setCurrentImage((p) => (p + 1) % plant.images.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [plant]);
+
   // Keyboard navigation for images
   useEffect(() => {
     if (!plant) return;
@@ -262,11 +272,11 @@ export default function PlantDetailPage({
 
             <div className="flex items-center gap-3">
               <Link
-                href="/chat"
+                href={`/chat?herb=${encodeURIComponent(plant.name)}`}
                 className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-ayur-gold text-background text-sm font-medium hover:bg-ayur-amber transition-colors"
               >
                 <BookOpen className="w-4 h-4" />
-                Ask AI about {plant.name}
+                Ask Vaidya about {plant.name}
               </Link>
               <button className="w-11 h-11 rounded-xl glass-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
                 <Share2 className="w-4 h-4" />
@@ -453,11 +463,11 @@ export default function PlantDetailPage({
                   compatibility.
                 </p>
                 <Link
-                  href="/chat"
+                  href={`/chat?herb=${encodeURIComponent(plant.name)}`}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-ayur-gold text-background text-xs font-medium hover:bg-ayur-amber transition-colors"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
-                  Chat with Vaidya AI
+                  Chat with Vaidya
                 </Link>
               </div>
             </div>

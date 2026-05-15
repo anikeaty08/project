@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SignInButton, useAuth } from "@clerk/nextjs";
 import { ChatHeader } from "@/components/chat/chat-header";
@@ -11,9 +12,12 @@ import {
   deleteJson,
   getJson,
   postJson,
+  postPublicJson,
   uploadFiles,
   type MessageItem,
   type SessionItem,
+  type UnsplashIntent,
+  type UnsplashPhoto,
 } from "@/lib/rag-api";
 
 const SandParticles = dynamic(
@@ -51,6 +55,9 @@ function SignedOutPanel() {
 
 function ChatApp() {
   const { getToken, isLoaded } = useAuth();
+  const searchParams = useSearchParams();
+  const herbParam = searchParams.get("herb");
+  const herbSentRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
@@ -60,6 +67,8 @@ function ChatApp() {
   const [token, setToken] = useState("");
   const [voiceReplies, setVoiceReplies] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [photosByMessageId, setPhotosByMessageId] = useState<Record<string, UnsplashPhoto[]>>({});
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const speak = useCallback((text: string) => {
     if (!voiceReplies || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -86,6 +95,7 @@ function ChatApp() {
   const loadMessages = useCallback(async (sessionId: string, authToken: string) => {
     const rows = await getJson<MessageItem[]>(`/sessions/${sessionId}/messages`, authToken);
     setMessages(rows.map(fromApiMessage));
+    setPhotosByMessageId({});
   }, []);
 
   const createSession = useCallback(async (authToken: string) => {
@@ -174,11 +184,32 @@ function ChatApp() {
     }
   }, [activeSessionId, token, loadToken, refreshSessions, loadMessages, deletingSessionId]);
 
+  const loadUnsplashForMessage = useCallback(async (message: ChatMessage) => {
+    try {
+      const intent = await postPublicJson<UnsplashIntent>("/unsplash/intent", { text: message.content });
+      if (!intent.show_images || !intent.keyword) return;
+      const photos = await postPublicJson<UnsplashPhoto[]>("/unsplash/search", { keyword: intent.keyword, per_page: 3 });
+      if (photos.length) {
+        setPhotosByMessageId((prev) => ({ ...prev, [message.id]: photos }));
+      }
+    } catch {
+      // Unsplash is decorative; chat should stay quiet if it is unavailable.
+    }
+  }, []);
+
+  const handleStop = useCallback(() => {
+    abortController?.abort();
+    setAbortController(null);
+    setIsTyping(false);
+  }, [abortController]);
+
   const handleSend = useCallback(async (text: string, files?: File[]) => {
     const content = text.trim() || (files?.length ? "Please help me with the attached file(s)." : "");
     if (!content || isTyping) return;
     setError("");
     setIsTyping(true);
+    const controller = new AbortController();
+    setAbortController(controller);
     const optimisticId = `local-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
       id: optimisticId,
@@ -205,7 +236,8 @@ function ChatApp() {
       const response = await postJson<ChatResponse>(
         `/sessions/${sessionId}/chat/`,
         { content, language: null, upload_ids: uploadIds },
-        authToken
+        authToken,
+        controller.signal
       );
       if (response.user_message && response.assistant_message) {
         const realUser = fromApiMessage(response.user_message as MessageItem);
@@ -216,6 +248,7 @@ function ChatApp() {
           realAssistant,
         ]);
         speak(realAssistant.content);
+        loadUnsplashForMessage(realAssistant);
       } else {
         await loadMessages(sessionId, authToken);
         speak(response.answer);
@@ -228,15 +261,28 @@ function ChatApp() {
       await refreshSessions(authToken);
     } catch (exc) {
       setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
-      setError(exc instanceof Error ? exc.message : String(exc));
+      if (exc instanceof DOMException && exc.name === "AbortError") {
+        setError("Response stopped.");
+      } else {
+        setError(exc instanceof Error ? exc.message : String(exc));
+      }
     } finally {
       setIsTyping(false);
+      setAbortController(null);
     }
-  }, [activeSessionId, token, isTyping, loadToken, createSession, loadMessages, refreshSessions, speak]);
+  }, [activeSessionId, token, isTyping, loadToken, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage]);
 
   const handleSuggestionClick = useCallback((text: string) => {
     handleSend(text);
   }, [handleSend]);
+
+  // Auto-send herb query when navigating from plant detail page
+  useEffect(() => {
+    if (herbParam && token && !herbSentRef.current && !isTyping && messages.length === 0) {
+      herbSentRef.current = true;
+      handleSend(`Tell me everything about ${herbParam} — its history, appearance, benefits, uses, and precautions.`);
+    }
+  }, [herbParam, token, isTyping, messages.length, handleSend]);
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -263,8 +309,8 @@ function ChatApp() {
           deletingSessionId={deletingSessionId}
         />
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatMessages messages={messages} isTyping={isTyping} token={token} onSuggestionClick={handleSuggestionClick} />
-          <ChatInput onSend={handleSend} disabled={isTyping || !token} />
+          <ChatMessages messages={messages} isTyping={isTyping} token={token} photosByMessageId={photosByMessageId} onSuggestionClick={handleSuggestionClick} />
+          <ChatInput onSend={handleSend} onStop={handleStop} disabled={!token} isThinking={isTyping} />
         </div>
       </div>
     </div>

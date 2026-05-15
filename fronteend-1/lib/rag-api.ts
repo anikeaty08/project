@@ -40,6 +40,21 @@ export type UploadItem = {
   created_at: string
 }
 
+export type UnsplashIntent = {
+  show_images: boolean
+  keyword: string
+}
+
+export type UnsplashPhoto = {
+  id: string
+  url: string
+  thumb_url: string
+  alt: string
+  photographer: string
+  photographer_url: string
+  unsplash_url: string
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || ""
 
 function apiUrl(path: string) {
@@ -83,13 +98,26 @@ export async function getJson<T>(path: string, token: string): Promise<T> {
 export async function postJson<T>(
   path: string,
   body: unknown,
-  token: string
+  token: string,
+  signal?: AbortSignal
 ): Promise<T> {
   const response = await fetch(apiUrl(path), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(token),
+    },
+    body: JSON.stringify(body),
+    signal,
+  })
+  return (await parseResponse(response)) as T
+}
+
+export async function postPublicJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
   })

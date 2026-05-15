@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     tavily_trusted_domains: str = (
         "fda.gov,nih.gov,who.int,nlm.nih.gov,ncbi.nlm.nih.gov,medlineplus.gov"
     )
+    unsplash_access_key: str = ""
 
     clerk_issuer: str = ""
     clerk_audience: str = ""

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Paperclip, Mic, MicOff, Send, X, FileText, ImageIcon } from "lucide-react";
+import { Paperclip, Mic, MicOff, Send, X, FileText, ImageIcon, Square } from "lucide-react";
 
 interface FilePreview {
   file: File;
@@ -10,10 +10,12 @@ interface FilePreview {
 
 interface ChatInputProps {
   onSend: (message: string, files?: File[]) => Promise<void> | void;
+  onStop?: () => void;
   disabled?: boolean;
+  isThinking?: boolean;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, disabled, isThinking }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FilePreview[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -41,16 +43,20 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
+    if (isThinking) {
+      onStop?.();
+      return;
+    }
     if ((!trimmed && files.length === 0) || disabled) return;
     const selectedFiles = files.map((f) => f.file);
-    await onSend(trimmed, selectedFiles.length > 0 ? selectedFiles : undefined);
-    files.forEach((f) => {
-      if (f.url) URL.revokeObjectURL(f.url);
-    });
     setInput("");
     setFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-  }, [input, files, onSend, disabled]);
+    files.forEach((f) => {
+      if (f.url) URL.revokeObjectURL(f.url);
+    });
+    await onSend(trimmed, selectedFiles.length > 0 ? selectedFiles : undefined);
+  }, [input, files, onSend, disabled, isThinking, onStop]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -179,8 +185,8 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
 
-            <button onClick={handleSend} disabled={!hasContent || disabled} className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 mb-0.5 ${hasContent ? "bg-ayur-gold text-background hover:bg-ayur-amber" : "bg-white/5 text-muted-foreground/30 cursor-not-allowed"}`} aria-label="Send message">
-              <Send className="w-4 h-4" />
+            <button onClick={handleSend} disabled={!isThinking && (!hasContent || disabled)} className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 mb-0.5 ${isThinking ? "bg-red-500/20 text-red-300 hover:bg-red-500/30" : hasContent ? "bg-ayur-gold text-background hover:bg-ayur-amber" : "bg-white/5 text-muted-foreground/30 cursor-not-allowed"}`} aria-label={isThinking ? "Stop response" : "Send message"}>
+              {isThinking ? <Square className="w-4 h-4 fill-current" /> : <Send className="w-4 h-4" />}
             </button>
           </div>
         </div>

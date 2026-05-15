@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { Leaf, Sparkles, MessageSquare, BookOpen, Heart } from "lucide-react";
-import { fetchAuthedBlob, type MessageItem, type SourceItem } from "@/lib/rag-api";
+import { Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck } from "lucide-react";
+import { fetchAuthedBlob, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
 
 export interface ChatMessage {
   id: string;
@@ -16,6 +16,7 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   isTyping: boolean;
   token: string;
+  photosByMessageId?: Record<string, UnsplashPhoto[]>;
   onSuggestionClick: (text: string) => void;
 }
 
@@ -37,16 +38,28 @@ const suggestions = [
 ];
 
 function TypingIndicator() {
+  const steps = [
+    { icon: Search, label: "Reading your message" },
+    { icon: Brain, label: "Retrieving herb context" },
+    { icon: ShieldCheck, label: "Composing answer" },
+  ];
   return (
     <div className="flex items-start gap-3 msg-enter">
       <div className="w-8 h-8 rounded-full bg-ayur-gold/15 flex items-center justify-center flex-shrink-0">
         <Leaf className="w-4 h-4 text-ayur-gold" />
       </div>
-      <div className="bg-chat-ai-bg rounded-2xl rounded-tl-sm px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-ayur-gold/60 typing-dot" />
-          <span className="w-2 h-2 rounded-full bg-ayur-gold/60 typing-dot" />
-          <span className="w-2 h-2 rounded-full bg-ayur-gold/60 typing-dot" />
+      <div className="bg-chat-ai-bg rounded-2xl rounded-tl-sm px-4 py-3 space-y-3 min-w-[260px]">
+        <div className="flex items-center gap-2 text-sm text-foreground/90">
+          <span className="w-2 h-2 rounded-full bg-ayur-gold animate-pulse" />
+          Vaidya is thinking
+        </div>
+        <div className="grid gap-2">
+          {steps.map((step) => (
+            <div key={step.label} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <step.icon className="w-3.5 h-3.5 text-ayur-gold/70" />
+              <span>{step.label}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -94,7 +107,24 @@ function AttachmentPreview({ file, token }: { file: SourceItem; token: string })
   );
 }
 
-function MessageBubble({ message, token }: { message: ChatMessage; token: string }) {
+function UnsplashStrip({ photos }: { photos: UnsplashPhoto[] }) {
+  if (!photos.length) return null;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+      {photos.map((photo) => (
+        <a key={photo.id} href={photo.unsplash_url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-lg bg-white/5 border border-white/10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.thumb_url || photo.url} alt={photo.alt} className="h-28 w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+          <div className="px-2 py-1 text-[10px] text-muted-foreground truncate">
+            {photo.photographer ? `Photo by ${photo.photographer}` : "Unsplash"}
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function MessageBubble({ message, token, photos }: { message: ChatMessage; token: string; photos?: UnsplashPhoto[] }) {
   const isUser = message.role === "user";
   const attachments = (message.sources || []).filter((source) => source.type === "attachment");
 
@@ -123,6 +153,7 @@ function MessageBubble({ message, token }: { message: ChatMessage; token: string
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? "bg-chat-user-bg rounded-tr-sm text-foreground" : "bg-chat-ai-bg rounded-tl-sm text-foreground/90"}`}>
           {message.content}
         </div>
+        {!isUser && photos && <UnsplashStrip photos={photos} />}
 
         <p className={`text-[10px] text-muted-foreground/50 font-mono px-1 ${isUser ? "text-right" : ""}`}>
           {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -132,7 +163,7 @@ function MessageBubble({ message, token }: { message: ChatMessage; token: string
   );
 }
 
-export function ChatMessages({ messages, isTyping, token, onSuggestionClick }: ChatMessagesProps) {
+export function ChatMessages({ messages, isTyping, token, photosByMessageId = {}, onSuggestionClick }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -178,7 +209,7 @@ export function ChatMessages({ messages, isTyping, token, onSuggestionClick }: C
     <div className="flex-1 overflow-y-auto scrollbar-thin relative z-10">
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} token={token} />
+          <MessageBubble key={msg.id} message={msg} token={token} photos={photosByMessageId[msg.id]} />
         ))}
         {isTyping && <TypingIndicator />}
         <div ref={bottomRef} />

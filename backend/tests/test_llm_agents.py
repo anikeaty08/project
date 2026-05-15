@@ -20,6 +20,7 @@ from app.llm.agents import (
 )
 from app.llm.json_utils import parse_model_or_fallback
 from app.llm.schemas import SessionQueryResult, UnsplashIntentResult
+from app.routers import unsplash_intent as unsplash_router
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -146,6 +147,13 @@ class TestSeparateAgents(unittest.TestCase):
                         messages=[],
                         temperature=0,
                     )
+
+    def test_unsplash_search_requires_access_key(self) -> None:
+        with patch.object(unsplash_router.settings, "unsplash_access_key", ""):
+            with self.assertRaisesRegex(Exception, "UNSPLASH_ACCESS_KEY"):
+                unsplash_router.unsplash_search(
+                    unsplash_router.UnsplashSearchRequest(keyword="tulsi")
+                )
 
 
 if __name__ == "__main__":
