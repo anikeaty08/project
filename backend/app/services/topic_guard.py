@@ -137,6 +137,15 @@ CONTEXT_PROMPT_TERMS = {
     "concerns",
 }
 
+LANGUAGE_REQUEST_TERMS = {
+    "talk to me in kannada",
+    "speak in kannada",
+    "reply in kannada",
+    "respond in kannada",
+    "kannada",
+    "ಕನ್ನಡ",
+}
+
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
@@ -184,6 +193,8 @@ def classify_ayurveda_topic(
         return "allowed"
     if text in SMALL_TALK:
         return "allowed"
+    if any(term in text for term in LANGUAGE_REQUEST_TERMS):
+        return "contextual"
     if _has_direct_domain_signal(text):
         return "allowed"
 
