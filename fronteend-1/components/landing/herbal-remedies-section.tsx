@@ -15,6 +15,8 @@ const remedies = [
   { name: "Shatavari", key: "shatavari", category: "Rejuvenative" },
   { name: "Guduchi", key: "guduchi", category: "Immune" },
   { name: "Neem", key: "neem", category: "Purifying" },
+  { name: "Ginger", key: "ginger", category: "Digestive" },
+  { name: "Amalaki", key: "amalaki", category: "Rasayana" },
 ];
 
 export function HerbalRemediesSection() {
