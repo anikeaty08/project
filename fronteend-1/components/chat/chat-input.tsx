@@ -19,11 +19,9 @@ export function ChatInput({ onSend, onStop, disabled, isThinking }: ChatInputPro
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FilePreview[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -34,7 +32,7 @@ export function ChatInput({ onSend, onStop, disabled, isThinking }: ChatInputPro
 
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      recognitionRef.current?.stop();
       files.forEach((f) => {
         if (f.url) URL.revokeObjectURL(f.url);
       });
@@ -88,8 +86,6 @@ export function ChatInput({ onSend, onStop, disabled, isThinking }: ChatInputPro
     if (isRecording) {
       recognitionRef.current?.stop();
       setIsRecording(false);
-      setRecordingTime(0);
-      if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
 
@@ -115,25 +111,14 @@ export function ChatInput({ onSend, onStop, disabled, isThinking }: ChatInputPro
     };
     recognition.onerror = () => {
       setIsRecording(false);
-      setRecordingTime(0);
-      if (timerRef.current) clearInterval(timerRef.current);
     };
     recognition.onend = () => {
       setIsRecording(false);
-      setRecordingTime(0);
-      if (timerRef.current) clearInterval(timerRef.current);
     };
 
     recognitionRef.current = recognition;
     recognition.start();
     setIsRecording(true);
-    timerRef.current = setInterval(() => setRecordingTime((prev) => prev + 1), 1000);
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   const hasContent = input.trim().length > 0 || files.length > 0;
@@ -166,13 +151,6 @@ export function ChatInput({ onSend, onStop, disabled, isThinking }: ChatInputPro
         )}
 
         <div className="relative glass-card-strong rounded-2xl transition-all duration-300 focus-within:shadow-[0_0_0_1px_rgba(201,169,110,0.2)]">
-          {isRecording && (
-            <div className="flex items-center gap-3 px-4 pt-3 pb-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs text-red-400 font-mono">Recording {formatTime(recordingTime)}</span>
-            </div>
-          )}
-
           <div className="flex items-end gap-2 p-3">
             <button onClick={() => fileInputRef.current?.click()} disabled={disabled} className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200 mb-0.5" aria-label="Attach file">
               <Paperclip className="w-5 h-5" />
