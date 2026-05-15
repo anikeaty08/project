@@ -10,7 +10,7 @@ import { ChatMessages, fromApiMessage, type ChatMessage, type DoshaQuizState } f
 import { ChatInput } from "@/components/chat/chat-input";
 import herbImages from "@/lib/herb-images.json";
 import { calculateResults, doshaProfiles, quizQuestions, type Dosha } from "@/lib/prakriti-data";
-import { savePrakritiResult } from "@/lib/prakriti-api";
+import { generateQuiz, savePrakritiResult } from "@/lib/prakriti-api";
 import {
   ApiError,
   AUTH_EXPIRED_MESSAGE,
@@ -42,7 +42,8 @@ type ChatResponse = {
   steps?: AgentStep[];
 };
 
-const CHAT_DOSHA_QUESTIONS = quizQuestions.slice(0, 12);
+const FALLBACK_DOSHA_QUESTIONS = quizQuestions.slice(0, 12);
+const CHAT_DOSHA_QUESTION_COUNT = 12;
 
 function isDoshaAnalysisTrigger(text: string) {
   const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
@@ -112,6 +113,20 @@ function buildDoshaAnalysisMessage(answers: Record<number, Dosha>, saved: boolea
     "",
     `_${saveLine} This is wellness guidance for self-understanding, not a medical diagnosis or treatment plan._`,
   ].join("\n");
+}
+
+function answersForHistory(quiz: DoshaQuizState) {
+  return Object.fromEntries(
+    quiz.questions.map((question) => [
+      String(question.id),
+      {
+        answer: quiz.answers[question.id] || "",
+        category: question.category,
+        question: question.question,
+        options: question.options,
+      },
+    ])
+  );
 }
 
 function predictedSteps(text: string, hasFiles: boolean): AgentStep[] {
