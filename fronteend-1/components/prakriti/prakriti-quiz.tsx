@@ -2,19 +2,20 @@
 
 import { useState } from "react";
 import { ChevronRight, ChevronLeft, Leaf, Sparkles } from "lucide-react";
-import { quizQuestions, type Dosha } from "@/lib/prakriti-data";
+import { type Dosha, type QuizQuestion } from "@/lib/prakriti-data";
 
 interface PrakritiQuizProps {
+  questions: QuizQuestion[];
   onComplete: (answers: Record<number, Dosha>) => void;
 }
 
-export function PrakritiQuiz({ onComplete }: PrakritiQuizProps) {
+export function PrakritiQuiz({ questions, onComplete }: PrakritiQuizProps) {
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<Record<number, Dosha>>({});
   const [direction, setDirection] = useState<"next" | "prev">("next");
 
-  const question = quizQuestions[currentQ];
-  const total = quizQuestions.length;
+  const question = questions[currentQ];
+  const total = questions.length;
   const progress = ((currentQ + 1) / total) * 100;
   const selectedAnswer = answers[question.id];
 
@@ -38,7 +39,7 @@ export function PrakritiQuiz({ onComplete }: PrakritiQuizProps) {
     setCurrentQ((p) => p - 1);
   };
 
-  const categories = [...new Set(quizQuestions.map((q) => q.category))];
+  const categories = [...new Set(questions.map((q) => q.category))];
   const currentCatIndex = categories.indexOf(question.category);
 
   return (
