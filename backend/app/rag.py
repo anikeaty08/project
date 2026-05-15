@@ -6,6 +6,8 @@ from app import chroma_store
 from app.config import settings
 from app.embeddings import embed_query
 from app.llm.tasks import run_rag_answer_agent
+from app.services.answer_service import ensure_citation
+from app.services.topic_guard import is_ayurveda_related, off_topic_response
 
 
 def _last_user_message(messages: list[dict[str, Any]]) -> str:
@@ -102,6 +104,8 @@ def chat_with_rag(
         raise ValueError("OPENAI_API_KEY is not set")
 
     user_q = _last_user_message(messages)
+    if not is_ayurveda_related(user_q):
+        return off_topic_response(), []
     context, sources = retrieve_context(user_q)
     answer = run_rag_answer_agent(messages, None, context, language)
-    return answer, sources
+    return ensure_citation(answer, context), sources

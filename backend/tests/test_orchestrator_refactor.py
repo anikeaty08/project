@@ -14,11 +14,13 @@ from app.services.auth import (
     verify_owner_token,
     verify_session_user,
 )
+from app.services.answer_service import ensure_citation
 from app.services.chat_planner import ChatPlanner
 from app.services.chat_agent_graph import ChatAgentGraph
 from app.services.chat_repository import ChatRepository, session_title_from_message
 from app.services.chat_verification import ChatVerificationService
 from app.services.chat_models import UploadContext
+from app.services.topic_guard import is_ayurveda_related, off_topic_response
 from app.services.upload_context import UploadContextService
 from app.services.upload_processing import UploadProcessingService
 
@@ -134,6 +136,20 @@ class TestOrchestrationServices(unittest.TestCase):
                 ctx,
             )
         )
+
+    def test_topic_guard_rejects_non_ayurveda_question(self) -> None:
+        self.assertFalse(is_ayurveda_related("write me a python sorting algorithm"))
+        self.assertIn("Ayurveda", off_topic_response())
+
+    def test_topic_guard_allows_herb_question(self) -> None:
+        self.assertTrue(is_ayurveda_related("tell me about tulsi benefits"))
+
+    def test_answer_service_adds_fallback_citation(self) -> None:
+        answer = ensure_citation(
+            "Tulsi supports respiratory wellness.",
+            "--- Source [1] book ---\nTulsi text",
+        )
+        self.assertTrue(answer.endswith("Source: [1]"))
 
     def test_upload_context_reports_pending_upload(self) -> None:
         upload = SimpleNamespace(
