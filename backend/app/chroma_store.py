@@ -44,7 +44,7 @@ def upsert_chunks(
         chunk_emb = embeddings[start:end]
         ids = [
             hashlib.sha1(
-                f"{meta.get('source', '')}:{meta.get('chunk_index', '')}:{doc[:120]}".encode(
+                f"{meta.get('source', '')}:{meta.get('chunk_index', '')}:{hashlib.sha1(doc.encode('utf-8', errors='ignore')).hexdigest()}".encode(
                     "utf-8",
                     errors="ignore",
                 )
