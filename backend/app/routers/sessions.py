@@ -83,6 +83,12 @@ class SourceItem(BaseModel):
     snippet: str
 
 
+class AgentStepItem(BaseModel):
+    key: str
+    label: str
+    status: str = "completed"
+
+
 class SessionChatResponse(BaseModel):
     answer: str
     sources: list[SourceItem]
@@ -91,6 +97,7 @@ class SessionChatResponse(BaseModel):
     assistant_message_id: str
     session_title: str | None = None
     trace_id: str | None = None
+    steps: list[AgentStepItem] = []
     user_message: MessageItem | None = None
     assistant_message: MessageItem | None = None
 
@@ -325,6 +332,7 @@ def session_chat(
         assistant_message_id=out["assistant_message_id"],
         session_title=out.get("session_title"),
         trace_id=out.get("trace_id"),
+        steps=[AgentStepItem(**step) for step in out.get("steps", [])],
         user_message=MessageItem(**out["user_message"]),
         assistant_message=MessageItem(**out["assistant_message"]),
     )
