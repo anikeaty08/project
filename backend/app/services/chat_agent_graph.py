@@ -215,6 +215,7 @@ class ChatAgentGraph:
         state["off_topic"] = not is_ayurveda_related(
             state["user_content"],
             has_uploads=bool(state["uploads"]),
+            recent_messages=trimmed,
         )
         return state
 
