@@ -68,6 +68,24 @@ class TestSeparateAgents(unittest.TestCase):
         self.assertTrue(prescription_intent.keyword_match("Can I take this 5 mg tablet?"))
         self.assertFalse(prescription_intent.keyword_match("Tell me about tulsi leaves"))
 
+    def test_verification_prompt_block_includes_citations(self) -> None:
+        block = prescription_verify.to_prompt_block(
+            {
+                "verified_summary": "Aspirin is an antiplatelet medicine.",
+                "supplementary_notes": "",
+                "limitations": "Confirm dose with clinician.",
+                "trusted_citations": [
+                    {
+                        "title": "Aspirin",
+                        "url": "https://medlineplus.gov/druginfo/meds/a682878.html",
+                        "snippet": "Aspirin information.",
+                    }
+                ],
+            }
+        )
+        self.assertIn("Trusted citations", block)
+        self.assertIn("medlineplus.gov", block)
+
     def test_herb_formatter_output(self) -> None:
         rendered = herb_record_to_document(
             {
