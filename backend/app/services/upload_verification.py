@@ -17,7 +17,11 @@ class UploadVerificationService:
     ) -> dict[str, Any] | None:
         if parsed.get("provenance") == "plant_vision":
             return None
-        kind = UploadProcessingService().route_kind(upload.mime_type, user_context)
+        kind = UploadProcessingService().route_kind(
+            upload.mime_type,
+            user_context,
+            upload.original_filename,
+        )
         if kind != "document" or not is_parse_weak(parsed) or not settings.tavily_api_key:
             return None
         try:
