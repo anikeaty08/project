@@ -9,10 +9,12 @@ import { SymptomCheckerSection } from "@/components/landing/symptom-checker-sect
 import { TestimonialsSection } from "@/components/landing/testimonials-section";
 import { CtaSection } from "@/components/landing/cta-section";
 import { FooterSection } from "@/components/landing/footer-section";
+import { SignedInRedirect } from "./signed-in-redirect";
 
 export default function Home() {
   return (
     <main className="relative min-h-screen overflow-x-hidden">
+      <SignedInRedirect />
       <Navigation />
       <HeroSection />
       <WisdomSection />

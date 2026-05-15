@@ -1,10 +1,29 @@
 "use client";
 
-import { SignIn } from "@clerk/nextjs";
+import { SignIn, useAuth } from "@clerk/nextjs";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { ArrowRight, Leaf } from "lucide-react";
 
 export default function LoginPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/chat");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  if (!isLoaded || isSignedIn) {
+    return (
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background px-6 text-sm text-muted-foreground">
+        Opening chat...
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background px-6">
       <Link href="/" className="absolute top-8 left-8 z-20 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -20,7 +39,12 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-sm">Continue your Ayurvedic journey</p>
         </div>
         <div className="flex justify-center">
-          <SignIn routing="hash" afterSignInUrl="/chat" signUpUrl="/login" />
+          <SignIn
+            routing="hash"
+            forceRedirectUrl="/chat"
+            fallbackRedirectUrl="/chat"
+            signUpUrl="/login"
+          />
         </div>
       </div>
     </div>
