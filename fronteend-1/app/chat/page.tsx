@@ -59,6 +59,7 @@ function ChatApp() {
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
   const [voiceReplies, setVoiceReplies] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   const speak = useCallback((text: string) => {
     if (!voiceReplies || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -142,9 +143,12 @@ function ChatApp() {
   }, [token, loadToken, createSession]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
+    if (deletingSessionId) return;
     setError("");
+    setDeletingSessionId(id);
     try {
       const authToken = token || (await loadToken());
+      setSessions((prev) => prev.filter((session) => session.id !== id));
       await deleteJson(`/sessions/${id}`, authToken);
       const list = await refreshSessions(authToken);
       if (activeSessionId === id) {
@@ -152,13 +156,23 @@ function ChatApp() {
           setActiveSessionId(list[0].id);
           await loadMessages(list[0].id, authToken);
         } else {
-          await createSession(authToken);
+          setActiveSessionId(null);
+          setMessages([]);
         }
       }
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc));
+      try {
+        const authToken = token || (await loadToken());
+        await refreshSessions(authToken);
+      } catch {
+        // Keep the original delete error visible.
+      }
     }
-  }, [activeSessionId, token, loadToken, refreshSessions, loadMessages, createSession]);
+    finally {
+      setDeletingSessionId(null);
+    }
+  }, [activeSessionId, token, loadToken, refreshSessions, loadMessages, deletingSessionId]);
 
   const handleSend = useCallback(async (text: string, files?: File[]) => {
     const content = text.trim() || (files?.length ? "Please help me with the attached file(s)." : "");
@@ -246,6 +260,7 @@ function ChatApp() {
           onSelectSession={handleSelectSession}
           onNewChat={handleNewChat}
           onDeleteSession={handleDeleteSession}
+          deletingSessionId={deletingSessionId}
         />
         <div className="flex-1 flex flex-col min-w-0">
           <ChatMessages messages={messages} isTyping={isTyping} token={token} onSuggestionClick={handleSuggestionClick} />

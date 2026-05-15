@@ -11,6 +11,7 @@ interface ChatSidebarProps {
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
   onDeleteSession: (id: string) => void;
+  deletingSessionId?: string | null;
 }
 
 function groupForDate(value: string) {
@@ -31,6 +32,7 @@ export function ChatSidebar({
   onSelectSession,
   onNewChat,
   onDeleteSession,
+  deletingSessionId,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -72,7 +74,17 @@ export function ChatSidebar({
                   <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
                   <span className="flex-1 text-sm truncate">{session.title?.trim() || "New chat"}</span>
                 </button>
-                <button onClick={() => onDeleteSession(session.id)} className="w-8 h-8 rounded-md flex items-center justify-center text-red-400/60 hover:text-red-300 hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100" aria-label="Delete chat">
+                <button
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDeleteSession(session.id);
+                  }}
+                  disabled={deletingSessionId === session.id}
+                  className={`w-8 h-8 rounded-md flex items-center justify-center text-red-400/70 hover:text-red-300 hover:bg-white/10 transition-colors ${activeSessionId === session.id ? "opacity-100" : "opacity-70 group-hover:opacity-100"} disabled:opacity-30 disabled:cursor-wait`}
+                  aria-label="Delete chat"
+                  title="Delete chat"
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
