@@ -221,11 +221,10 @@ class TestOrchestrationServices(unittest.TestCase):
             "uploads": [],
             "trimmed_messages": [{"role": "user", "content": "talk to me in kannada"}],
         }
-        updated = graph._save_user_message.__func__(graph, state) if False else state
-        updated["off_topic"] = False
-        updated["direct_answer"] = "ಖಂಡಿತ. ಇಂದಿನಿಂದ ನಾನು ನಿಮಗೆ ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸುತ್ತೇನೆ."
-        updated["direct_summary_delta"] = "User prefers Kannada responses."
-        self.assertEqual(graph._route_after_user_message(updated), "direct")
+        state["off_topic"] = False
+        state["direct_answer"] = "ಖಂಡಿತ. ಇಂದಿನಿಂದ ನಾನು ನಿಮಗೆ ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸುತ್ತೇನೆ."
+        state["direct_summary_delta"] = "User prefers Kannada responses."
+        self.assertEqual(graph._route_after_user_message(state), "direct")
 
     def test_topic_guard_blocks_unrelated_requests_even_after_ayurveda_context(self) -> None:
         messages = [
