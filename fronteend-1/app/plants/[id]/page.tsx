@@ -18,6 +18,7 @@ import {
   Share2,
 } from "lucide-react";
 import { plants } from "@/lib/plants-data";
+import { allHerbDetails } from "@/lib/herb-details-index";
 
 export default function PlantDetailPage({
   params,
