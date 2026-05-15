@@ -1,4 +1,5 @@
 import { getJson, postJson, deleteJson } from "./rag-api";
+import type { Dosha } from "./prakriti-data";
 
 export interface PrakritiResultResponse {
   id: string;
@@ -37,7 +38,7 @@ export interface QuizQuestion {
   id: number;
   category: string;
   question: string;
-  options: { text: string; dosha: string }[];
+  options: { text: string; dosha: Dosha }[];
 }
 
 // ── Quiz Generation (backend AI agent) ──
