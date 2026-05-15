@@ -166,4 +166,24 @@ def to_prompt_block(verify: dict[str, Any]) -> str:
         f"Supplementary: {verify.get('supplementary_notes', '')}",
         f"Limitations: {verify.get('limitations', '')}",
     ]
+    trusted = verify.get("trusted_citations") or []
+    if trusted:
+        lines.append("Trusted citations:")
+        for item in trusted[:4]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or "").strip()
+            snippet = str(item.get("snippet") or "").strip()
+            lines.append(f"- {title} | {url} | {snippet[:350]}")
+    other = verify.get("other_citations") or []
+    if other:
+        lines.append("Supplementary citations:")
+        for item in other[:2]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or "").strip()
+            snippet = str(item.get("snippet") or "").strip()
+            lines.append(f"- {title} | {url} | {snippet[:250]}")
     return "\n".join(lines).strip()
