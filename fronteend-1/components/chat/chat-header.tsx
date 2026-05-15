@@ -1,6 +1,6 @@
 "use client";
 
-import { PanelLeftClose, PanelLeftOpen, Leaf, Sprout, Volume2, VolumeX } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Leaf, Sprout, Volume2, VolumeX, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 
@@ -38,6 +38,10 @@ export function ChatHeader({
         <Link href="/plants" className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200">
           <Sprout className="w-3.5 h-3.5" />
           Herbarium
+        </Link>
+        <Link href="/prakriti" className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200">
+          <Sparkles className="w-3.5 h-3.5" />
+          Prakriti
         </Link>
         <UserButton afterSignOutUrl="/" />
       </div>
