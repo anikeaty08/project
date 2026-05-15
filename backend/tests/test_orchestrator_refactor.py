@@ -13,6 +13,7 @@ from app.services.auth import (
     verify_session_user,
 )
 from app.services.chat_planner import ChatPlanner
+from app.services.chat_repository import session_title_from_message
 from app.services.chat_verification import ChatVerificationService
 from app.services.upload_context import UploadContextService
 from app.services.upload_processing import UploadProcessingService
@@ -79,6 +80,15 @@ class TestDeterministicRouting(unittest.TestCase):
 
 
 class TestOrchestrationServices(unittest.TestCase):
+    def test_session_title_uses_first_message(self) -> None:
+        title = session_title_from_message("  yeh konsi plant hai please identify this leaf image  ")
+        self.assertEqual(title, "yeh konsi plant hai please identify this leaf image")
+
+    def test_session_title_is_shortened_cleanly(self) -> None:
+        title = session_title_from_message("Tell me about ashwagandha dosage safety interactions and precautions for sleep")
+        self.assertLessEqual(len(title), 64)
+        self.assertFalse(title.endswith(" "))
+
     def test_chat_planner_fast_path_for_first_turn(self) -> None:
         plan = ChatPlanner().build_plan(
             [{"role": "user", "content": "tell me about tulsi"}],

@@ -57,6 +57,16 @@ function ChatApp() {
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
+  const [voiceReplies, setVoiceReplies] = useState(false);
+
+  const speak = useCallback((text: string) => {
+    if (!voiceReplies || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text.replace(/\s+/g, " ").trim());
+    utterance.rate = 0.96;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }, [voiceReplies]);
 
   const loadToken = useCallback(async () => {
     const clerkToken = await getToken();
@@ -154,6 +164,21 @@ function ChatApp() {
     if (!content || isTyping) return;
     setError("");
     setIsTyping(true);
+    const optimisticId = `local-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: optimisticId,
+      role: "user",
+      content,
+      timestamp: new Date(),
+      sources: files?.map((file, index) => ({
+        type: "attachment",
+        upload_id: `${optimisticId}-${index}`,
+        filename: file.name,
+        mime_type: file.type,
+        status: "uploading",
+      })),
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
     try {
       const authToken = token || (await loadToken());
       const sessionId = activeSessionId || (await createSession(authToken));
@@ -168,21 +193,26 @@ function ChatApp() {
         authToken
       );
       if (response.user_message && response.assistant_message) {
+        const realUser = fromApiMessage(response.user_message as MessageItem);
+        const realAssistant = fromApiMessage(response.assistant_message as MessageItem);
         setMessages((prev) => [
-          ...prev,
-          fromApiMessage(response.user_message as MessageItem),
-          fromApiMessage(response.assistant_message as MessageItem),
+          ...prev.filter((message) => message.id !== optimisticId),
+          realUser,
+          realAssistant,
         ]);
+        speak(realAssistant.content);
       } else {
         await loadMessages(sessionId, authToken);
+        speak(response.answer);
       }
       await refreshSessions(authToken);
     } catch (exc) {
+      setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
       setError(exc instanceof Error ? exc.message : String(exc));
     } finally {
       setIsTyping(false);
     }
-  }, [activeSessionId, token, isTyping, loadToken, createSession, loadMessages, refreshSessions]);
+  }, [activeSessionId, token, isTyping, loadToken, createSession, loadMessages, refreshSessions, speak]);
 
   const handleSuggestionClick = useCallback((text: string) => {
     handleSend(text);
@@ -190,7 +220,12 @@ function ChatApp() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <ChatHeader sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <ChatHeader
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        voiceReplies={voiceReplies}
+        onToggleVoiceReplies={() => setVoiceReplies((enabled) => !enabled)}
+      />
       {error && (
         <div className="relative z-40 bg-destructive/15 border-b border-destructive/30 px-4 py-2 text-sm text-red-200">
           {error}

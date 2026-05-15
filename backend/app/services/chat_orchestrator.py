@@ -61,6 +61,7 @@ class ChatOrchestrator:
                 user_content,
                 self.upload_context.attachment_items(uploads) if uploads else None,
             )
+            self.repo.set_initial_title(session, user_content)
             rows = self.repo.load_messages(db, session_id)
             dicts = messages_to_dicts(rows)
             trimmed = trim_messages_for_llm(

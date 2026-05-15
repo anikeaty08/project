@@ -1,23 +1,47 @@
-# Multilingual RAG
+# 🌿 Vaidya AI
 
-FastAPI Ayurveda/herb RAG with PostgreSQL chat history, Chroma retrieval, OpenAI chat/vision agents, optional Tavily verification, and a Clerk-authenticated Next.js frontend in `fronteend-1`.
+Ayurveda RAG chat with plant image detection, document uploads, Tavily verification, Clerk login, Postgres chat history, Redis cache, and a Next.js frontend.
 
-Default Compose starts Postgres and Redis only. Run ingest and the API from `backend/` for local development, or use `docker compose --profile app up -d --build` for the full stack after Chroma has been ingested on the host.
+Docker is intentionally small now. It starts only Postgres and Redis. Run the backend and `fronteend-1` locally so development stays fast and simple.
 
-## Quick Start
+## 🚀 Run It
 
-1. Put documents under `data/`.
-2. Start infrastructure: `docker compose up -d`.
-3. Copy `backend/.env.example` to `backend/.env`.
-4. Set at least `DATABASE_URL`, `OPENAI_API_KEY`, `CHROMA_PATH=../vector_store`, and Clerk auth settings.
-5. From `backend/`, run `.\.venv\Scripts\python -m app.ingest_cli --clear --url-limit 0`.
-6. Start the API: `.\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 5500 --reload`.
-7. Copy `fronteend-1/.env.local.example` to `fronteend-1/.env.local`, set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `NEXT_PUBLIC_API_BASE_URL`.
-8. From `fronteend-1/`, run `npm run dev`.
+Step 1
 
-## Auth
+```powershell
+docker compose up -d
+```
 
-The active frontend uses Clerk. The backend validates Clerk bearer tokens and stores sessions by Clerk user ID, so users can only list, open, delete, upload to, and chat inside their own sessions.
+Step 2
+
+```powershell
+cd backend
+copy .env.example .env
+.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python -m app.ingest_cli --clear --url-limit 0
+.\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 5500 --reload
+```
+
+Step 3
+
+```powershell
+cd fronteend-1
+copy .env.local.example .env.local
+npm install
+npm run dev
+```
+
+Open the Next.js URL printed by `npm run dev`.
+
+## 🔐 Auth
+
+The frontend uses Clerk.
+
+Each backend request sends the Clerk bearer token.
+
+The backend stores sessions with the Clerk user id.
+
+One user cannot list, open, delete, upload to, or chat inside another user session.
 
 Frontend env:
 
@@ -34,26 +58,85 @@ CLERK_AUDIENCE=
 CLERK_JWKS_URL=
 ```
 
-`CLERK_JWKS_URL` is optional when `CLERK_ISSUER` is set.
+`CLERK_JWKS_URL` can stay empty when `CLERK_ISSUER` is set.
 
-## Services
+## 💬 Chat
 
-| Service | Port | Default in Compose |
-| --- | --- | --- |
-| postgres | 5432 | always |
-| redis | 6379 | always |
-| backend | 8000 | profile `app` only |
-| fronteend-1 | 8080 | profile `app` only |
+New chats get a useful name from the first message.
 
-## Repo Layout
+The user message appears first.
 
-- `backend/` - FastAPI, deterministic chat/upload orchestration, LLM agents, Chroma, ingest CLI
-- `fronteend-1/` - Next.js + Clerk frontend wired to the RAG backend
-- `data/` - PDFs, TXT, MD, `herb.json`, `Linkss.txt`
-- `vector_store/` - Chroma persistence, created by ingest and gitignored
+Then the model thinks.
 
-## Uploads And Verification
+Then the assistant answer appears.
 
-Uploads go to `POST /sessions/{id}/uploads` and are processed by backend services. Images are routed deterministically to plant vision or prescription/document parsing based on the prompt. PDFs/text are extracted page-wise where possible, indexed into Chroma, and can be verified with Tavily when `TAVILY_API_KEY` is configured.
+Uploads can include plant images, medicine photos, PDFs, text files, and markdown files.
 
-Large files use queued in-process jobs with DB status, so chat can report when an upload is still processing instead of blocking forever.
+## 🎙️ Voice
+
+The mic button turns speech into text in the chat box.
+
+The speaker button reads assistant replies aloud.
+
+The text answer still stays on screen, so voice never hides the actual response.
+
+## 🧠 Backend
+
+FastAPI handles:
+
+```text
+Clerk auth
+Session ownership
+Chat orchestration
+RAG retrieval
+Plant vision
+Prescription and document parsing
+Upload jobs
+Tavily verification
+Postgres messages
+Chroma indexing
+```
+
+## 🧱 Docker
+
+Only infrastructure runs in Docker:
+
+```text
+Postgres  localhost:5432
+Redis     localhost:6379
+```
+
+Backend and frontend run from the host.
+
+## 📁 Folders
+
+```text
+backend      FastAPI RAG backend
+fronteend-1  Active Next.js frontend
+data         Source documents
+vector_store Chroma database
+```
+
+The old `frontend` folder is deleted.
+
+## 📋 Copy These
+
+Start database and cache:
+
+```powershell
+docker compose up -d
+```
+
+Backend:
+
+```powershell
+cd backend
+.\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 5500 --reload
+```
+
+Frontend:
+
+```powershell
+cd fronteend-1
+npm run dev
+```

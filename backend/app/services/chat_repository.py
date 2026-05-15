@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,19 @@ from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage, ChatSession
 from app.models.session_upload import SessionUpload
+
+
+def session_title_from_message(content: str, max_chars: int = 64) -> str:
+    text = re.sub(r"\s+", " ", content).strip()
+    if not text:
+        return "New chat"
+    if text.lower().startswith("please help me with the attached file"):
+        return "Uploaded file"
+    text = text.strip(" .,:;!?")
+    if len(text) <= max_chars:
+        return text or "New chat"
+    clipped = text[: max_chars + 1].rsplit(" ", 1)[0].strip(" .,:;!?")
+    return clipped or text[:max_chars].strip(" .,:;!?") or "New chat"
 
 
 class ChatRepository:
@@ -66,3 +80,9 @@ class ChatRepository:
 
     def touch_session(self, session: ChatSession) -> None:
         session.updated_at = datetime.now(timezone.utc)
+
+    def set_initial_title(self, session: ChatSession, content: str) -> None:
+        if session.title and session.title.strip() not in {"New chat", "Untitled chat"}:
+            return
+        session.title = session_title_from_message(content)
+        self.touch_session(session)

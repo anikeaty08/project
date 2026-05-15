@@ -1,15 +1,22 @@
 "use client";
 
-import { PanelLeftClose, PanelLeftOpen, Leaf, Sprout } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Leaf, Sprout, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 
 interface ChatHeaderProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  voiceReplies: boolean;
+  onToggleVoiceReplies: () => void;
 }
 
-export function ChatHeader({ sidebarOpen, onToggleSidebar }: ChatHeaderProps) {
+export function ChatHeader({
+  sidebarOpen,
+  onToggleSidebar,
+  voiceReplies,
+  onToggleVoiceReplies,
+}: ChatHeaderProps) {
   return (
     <header className="relative z-30 flex items-center justify-between h-14 px-4 border-b border-border/50">
       <div className="flex items-center gap-3">
@@ -25,6 +32,9 @@ export function ChatHeader({ sidebarOpen, onToggleSidebar }: ChatHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        <button onClick={onToggleVoiceReplies} className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${voiceReplies ? "bg-ayur-gold/15 text-ayur-gold" : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`} aria-label={voiceReplies ? "Turn voice replies off" : "Turn voice replies on"} title={voiceReplies ? "Voice replies on" : "Voice replies off"}>
+          {voiceReplies ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+        </button>
         <Link href="/plants" className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200">
           <Sprout className="w-3.5 h-3.5" />
           Herbarium
