@@ -291,6 +291,51 @@ export default function PlantDetailPage({
                 </p>
               </div>
 
+              {/* Appearance */}
+              {allHerbDetails[plant.id]?.appearance && (
+                <div className="glass-card rounded-2xl p-6 lg:p-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                      <Eye className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <h2 className="text-lg font-display">Appearance</h2>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {allHerbDetails[plant.id].appearance}
+                  </p>
+                </div>
+              )}
+
+              {/* Historical Background */}
+              {allHerbDetails[plant.id]?.history && (
+                <div className="glass-card rounded-2xl p-6 lg:p-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                      <ScrollText className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <h2 className="text-lg font-display">Historical Background</h2>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {allHerbDetails[plant.id].history}
+                  </p>
+                </div>
+              )}
+
+              {/* Medicinal Properties */}
+              {allHerbDetails[plant.id]?.medicinal && (
+                <div className="glass-card rounded-2xl p-6 lg:p-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                      <Stethoscope className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <h2 className="text-lg font-display">Medicinal Properties</h2>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {allHerbDetails[plant.id].medicinal}
+                  </p>
+                </div>
+              )}
+
               {/* Benefits */}
               <div className="glass-card rounded-2xl p-6 lg:p-8">
                 <div className="flex items-center gap-3 mb-5">
