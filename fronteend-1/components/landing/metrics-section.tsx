@@ -164,7 +164,7 @@ function DotGraph({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef(0);
-  const timeRef = useRef(Math.random() * 100);
+  const timeRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
