@@ -21,7 +21,7 @@ from app.services.chat_agent_graph import ChatAgentGraph
 from app.services.chat_repository import ChatRepository, session_title_from_message
 from app.services.chat_verification import ChatVerificationService
 from app.services.chat_models import UploadContext
-from app.services.topic_guard import is_ayurveda_related, off_topic_response
+from app.services.topic_guard import classify_ayurveda_topic, is_ayurveda_related, off_topic_response
 from app.services.upload_context import UploadContextService
 from app.services.upload_processing import UploadProcessingService
 
@@ -166,6 +166,10 @@ class TestOrchestrationServices(unittest.TestCase):
         self.assertFalse(is_ayurveda_related("write me a python sorting algorithm"))
         self.assertIn("Ayurveda", off_topic_response())
 
+    def test_topic_guard_rejects_clearly_unrelated_questions(self) -> None:
+        self.assertFalse(is_ayurveda_related("make a movie script"))
+        self.assertFalse(is_ayurveda_related("what is the capital of france"))
+
     def test_topic_guard_allows_herb_question(self) -> None:
         self.assertTrue(is_ayurveda_related("tell me about tulsi benefits"))
 
@@ -174,6 +178,52 @@ class TestOrchestrationServices(unittest.TestCase):
 
     def test_topic_guard_allows_dosha_questionnaire_reply(self) -> None:
         self.assertTrue(is_ayurveda_related("thin, dry, high, calm, cancer"))
+
+    def test_topic_guard_allows_contextual_dosha_questionnaire_reply(self) -> None:
+        messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Please share your body type, skin type, energy levels, "
+                    "temperament, and any health concerns for dosha analysis."
+                ),
+            }
+        ]
+        self.assertEqual(
+            classify_ayurveda_topic("thin, dry, high, calm, cancer", recent_messages=messages),
+            "allowed",
+        )
+        self.assertEqual(
+            classify_ayurveda_topic("cancer", recent_messages=messages),
+            "contextual",
+        )
+
+    def test_topic_guard_allows_short_contextual_followups_after_ayurveda(self) -> None:
+        messages = [
+            {
+                "role": "assistant",
+                "content": "Tulsi is an Ayurvedic herb often discussed for respiratory wellness.",
+            }
+        ]
+        self.assertEqual(classify_ayurveda_topic("yes", recent_messages=messages), "contextual")
+        self.assertEqual(classify_ayurveda_topic("continue", recent_messages=messages), "contextual")
+        self.assertEqual(classify_ayurveda_topic("tell me more", recent_messages=messages), "contextual")
+
+    def test_topic_guard_blocks_unrelated_requests_even_after_ayurveda_context(self) -> None:
+        messages = [
+            {
+                "role": "assistant",
+                "content": "Tulsi is an Ayurvedic herb often discussed for respiratory wellness.",
+            }
+        ]
+        self.assertEqual(classify_ayurveda_topic("write me python code", recent_messages=messages), "blocked")
+        self.assertEqual(classify_ayurveda_topic("make a movie script", recent_messages=messages), "blocked")
+
+    def test_off_topic_response_is_warm_and_actionable(self) -> None:
+        response = off_topic_response()
+        self.assertIn("focused on Ayurveda", response)
+        self.assertIn("You can ask", response)
+        self.assertIn("What is my dosha", response)
 
     def test_answer_service_adds_fallback_citation(self) -> None:
         answer = ensure_citation(
