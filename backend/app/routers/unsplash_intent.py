@@ -11,8 +11,13 @@ router = APIRouter(prefix="/unsplash", tags=["unsplash"])
 
 HERB_KEYWORDS = [
     ("tulsi", "tulsi holy basil plant"),
+    ("tulasi", "tulsi holy basil plant"),
     ("holy basil", "tulsi holy basil plant"),
     ("ashwagandha", "ashwagandha plant"),
+    ("ashvgandha", "ashwagandha plant"),
+    ("ashvagandha", "ashwagandha plant"),
+    ("aswagandha", "ashwagandha plant"),
+    ("ashwaganda", "ashwagandha plant"),
     ("brahmi", "brahmi herb plant"),
     ("saffron", "saffron crocus flower"),
     ("turmeric", "turmeric plant"),

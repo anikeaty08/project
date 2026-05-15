@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 
 AYURVEDA_TERMS = {
     "ayurveda",
@@ -52,6 +53,19 @@ AYURVEDA_TERMS = {
     "kaunsi plant",
 }
 
+COMMON_HERB_ALIASES = {
+    "ashvgandha": "ashwagandha",
+    "ashvagandha": "ashwagandha",
+    "aswagandha": "ashwagandha",
+    "ashwaganda": "ashwagandha",
+    "ashwagandhaa": "ashwagandha",
+    "tulasi": "tulsi",
+    "tulasee": "tulsi",
+    "gudchi": "guduchi",
+    "giloi": "giloy",
+    "haldi": "turmeric",
+}
+
 SMALL_TALK = {
     "hi",
     "hello",
@@ -70,7 +84,16 @@ def is_ayurveda_related(user_content: str, has_uploads: bool = False) -> bool:
         return True
     if text in SMALL_TALK:
         return True
-    return any(term in text for term in AYURVEDA_TERMS)
+    if any(term in text for term in AYURVEDA_TERMS):
+        return True
+    tokens = re.findall(r"[a-zA-Z]{4,}", text)
+    canonical_herbs = {term for term in AYURVEDA_TERMS if term.isalpha() and len(term) >= 5}
+    for token in tokens:
+        if token in COMMON_HERB_ALIASES:
+            return True
+        if any(SequenceMatcher(None, token, herb).ratio() >= 0.84 for herb in canonical_herbs):
+            return True
+    return False
 
 
 def off_topic_response() -> str:

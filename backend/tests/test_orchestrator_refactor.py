@@ -144,6 +144,9 @@ class TestOrchestrationServices(unittest.TestCase):
     def test_topic_guard_allows_herb_question(self) -> None:
         self.assertTrue(is_ayurveda_related("tell me about tulsi benefits"))
 
+    def test_topic_guard_allows_common_herb_typo(self) -> None:
+        self.assertTrue(is_ayurveda_related("Mujhe ashvgandha ke bare mein batao"))
+
     def test_answer_service_adds_fallback_citation(self) -> None:
         answer = ensure_citation(
             "Tulsi supports respiratory wellness.",
