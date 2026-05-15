@@ -16,8 +16,20 @@ def verification_unavailable_block(reason: str) -> str:
 
 
 class ChatVerificationService:
-    def is_needed(self, user_content: str) -> bool:
-        return is_prescription_keyword_match(user_content)
+    def is_needed(self, user_content: str, upload_supplement: str | None = None) -> bool:
+        if is_prescription_keyword_match(user_content):
+            return True
+        supplement = (upload_supplement or "").lower()
+        prescription_markers = (
+            "prescription / document upload:",
+            "medication:",
+            "doctor:",
+            "dosage",
+            "dose",
+            "tablet",
+            "capsule",
+        )
+        return any(marker in supplement for marker in prescription_markers)
 
     def verify(
         self,
@@ -25,7 +37,7 @@ class ChatVerificationService:
         retrieval_query: str,
         upload_supplement: str | None,
     ) -> str | None:
-        if not self.is_needed(user_content):
+        if not self.is_needed(user_content, upload_supplement):
             return None
         if not settings.tavily_api_key:
             return verification_unavailable_block("TAVILY_API_KEY is not configured.")
