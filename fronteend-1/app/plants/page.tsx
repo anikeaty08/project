@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Leaf, MessageSquare, LogOut, Sprout } from "lucide-react";
+import { Leaf, MessageSquare, LogOut, Sprout, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { plants, categories } from "@/lib/plants-data";
 import { PlantCard } from "@/components/plants/plant-card";
@@ -51,6 +51,10 @@ export default function PlantsPage() {
               <Sprout className="w-3.5 h-3.5" />
               Herbarium
             </span>
+            <Link href="/prakriti" className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all">
+              <Sparkles className="w-3.5 h-3.5" />
+              Prakriti
+            </Link>
             <button onClick={() => { localStorage.removeItem("vaidya_auth"); router.push("/"); }} className="w-9 h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all">
               <LogOut className="w-4 h-4" />
             </button>
