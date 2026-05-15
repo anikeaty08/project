@@ -15,8 +15,10 @@ from app.services.auth import (
     verify_session_user,
 )
 from app.services.chat_planner import ChatPlanner
+from app.services.chat_agent_graph import ChatAgentGraph
 from app.services.chat_repository import ChatRepository, session_title_from_message
 from app.services.chat_verification import ChatVerificationService
+from app.services.chat_models import UploadContext
 from app.services.upload_context import UploadContextService
 from app.services.upload_processing import UploadProcessingService
 
@@ -117,6 +119,21 @@ class TestOrchestrationServices(unittest.TestCase):
         )
         self.assertEqual(plan.query, "tell me about tulsi")
         self.assertEqual(plan.summary_delta, "")
+
+    def test_agent_graph_keeps_simple_turn_on_fast_path(self) -> None:
+        graph = ChatAgentGraph()
+        ctx = UploadContext(secondary_query=None, supplement_text=None, pending_notes=[])
+        self.assertFalse(graph._is_complex_turn("tell me about tulsi", ctx))
+
+    def test_agent_graph_routes_complex_turn_to_bounded_loop(self) -> None:
+        graph = ChatAgentGraph()
+        ctx = UploadContext(secondary_query=None, supplement_text=None, pending_notes=[])
+        self.assertTrue(
+            graph._is_complex_turn(
+                "Compare tulsi and ashwagandha for stress and safety",
+                ctx,
+            )
+        )
 
     def test_upload_context_reports_pending_upload(self) -> None:
         upload = SimpleNamespace(
