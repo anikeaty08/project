@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
 import { fetchAuthedBlob, type AgentStep, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 import { type Dosha, type QuizQuestion } from "@/lib/prakriti-data";
@@ -272,6 +272,7 @@ function sourceName(source?: string) {
 }
 
 function CitationSources({ sources, messageId }: { sources: SourceItem[]; messageId: string }) {
+  const [open, setOpen] = useState(false);
   const citations = (sources || [])
     .filter((source) => source.type !== "attachment")
     .filter((source) => source.rank && source.snippet)
@@ -281,11 +282,38 @@ function CitationSources({ sources, messageId }: { sources: SourceItem[]; messag
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-        <BookOpen className="w-3 h-3 text-ayur-gold" />
-        Citations
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          <BookOpen className="w-3 h-3 text-ayur-gold" />
+          Citations
+          <span className="rounded-full bg-white/5 px-2 py-0.5 tracking-normal text-[10px] text-foreground/70">
+            {citations.length}
+          </span>
+        </span>
+        <span className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          {open ? "Hide" : "Show"}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+
+      <div className="flex flex-wrap gap-1.5">
+        {citations.map((source) => (
+          <a
+            key={`quick-${source.rank}`}
+            href={`#${messageId}-source-${source.rank}`}
+            onClick={() => setOpen(true)}
+            className="inline-flex h-6 items-center rounded-full border border-white/10 bg-background/35 px-2 text-[10px] font-mono text-ayur-gold hover:border-ayur-gold/40"
+          >
+            ^{source.rank}
+          </a>
+        ))}
       </div>
-      <div className="grid gap-2">
+
+      {open && <div className="grid gap-2 pt-1">
         {citations.map((source) => {
           const id = `${messageId}-source-${source.rank}`;
           const label = sourceName(source.source);
@@ -315,7 +343,7 @@ function CitationSources({ sources, messageId }: { sources: SourceItem[]; messag
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }
