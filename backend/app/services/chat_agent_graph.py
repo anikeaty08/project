@@ -243,7 +243,10 @@ class ChatAgentGraph:
         state["plan"] = plan
         state["upload_ctx"] = upload_ctx
         state["supplement_parts"] = [upload_ctx.supplement_text] if upload_ctx.supplement_text else []
-        state["needs_verification"] = self.verification.is_needed(state["user_content"])
+        state["needs_verification"] = self.verification.is_needed(
+            state["user_content"],
+            upload_ctx.supplement_text,
+        )
         state["use_autonomous_loop"] = self._is_complex_turn(state["user_content"], upload_ctx)
         state["tool_steps"] = 0
         self._append_step(state, "context", "Searching knowledge")
