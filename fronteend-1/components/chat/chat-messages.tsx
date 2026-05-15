@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
 import { fetchAuthedBlob, type AgentStep, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
+import { type Dosha, type QuizQuestion } from "@/lib/prakriti-data";
 
 export interface ChatMessage {
   id: string;
@@ -19,7 +20,20 @@ interface ChatMessagesProps {
   token: string;
   agentSteps?: AgentStep[];
   photosByMessageId?: Record<string, UnsplashPhoto[]>;
+  doshaQuiz?: DoshaQuizState | null;
   onSuggestionClick: (text: string) => void;
+  onDoshaSelect?: (dosha: Dosha) => void;
+  onDoshaNext?: () => void;
+  onDoshaBack?: () => void;
+  onDoshaCancel?: () => void;
+}
+
+export interface DoshaQuizState {
+  active: boolean;
+  questions: QuizQuestion[];
+  currentIndex: number;
+  answers: Record<number, Dosha>;
+  saving?: boolean;
 }
 
 export function fromApiMessage(message: MessageItem): ChatMessage {
@@ -71,6 +85,91 @@ function TypingIndicator({ agentSteps }: { agentSteps: AgentStep[] }) {
               <span>{step.label}</span>
             </div>
           )})}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DoshaQuizCard({
+  quiz,
+  onSelect,
+  onNext,
+  onBack,
+  onCancel,
+}: {
+  quiz: DoshaQuizState;
+  onSelect: (dosha: Dosha) => void;
+  onNext: () => void;
+  onBack: () => void;
+  onCancel: () => void;
+}) {
+  const question = quiz.questions[quiz.currentIndex];
+  const total = quiz.questions.length;
+  const selected = question ? quiz.answers[question.id] : undefined;
+  const progress = total ? ((quiz.currentIndex + 1) / total) * 100 : 0;
+  const isLast = quiz.currentIndex === total - 1;
+  const optionTone: Record<Dosha, string> = {
+    vata: "border-blue-400/40 bg-blue-400/10",
+    pitta: "border-red-400/40 bg-red-400/10",
+    kapha: "border-green-400/40 bg-green-400/10",
+  };
+
+  if (!question) return null;
+
+  return (
+    <div className="flex items-start gap-3 msg-enter">
+      <div className="w-8 h-8 rounded-full bg-ayur-gold/15 flex items-center justify-center flex-shrink-0">
+        <Sparkles className="w-4 h-4 text-ayur-gold" />
+      </div>
+      <div className="w-full max-w-[75%] rounded-2xl rounded-tl-sm bg-chat-ai-bg border border-white/10 px-4 py-4 space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-muted-foreground">
+            <span>Question {quiz.currentIndex + 1} of {total}</span>
+            <span className="text-ayur-gold truncate">{question.category}</span>
+          </div>
+          <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-ayur-gold to-ayur-amber transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-lg font-display leading-snug text-foreground">{question.question}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Choose the answer that feels most naturally true for you.</p>
+        </div>
+
+        <div className="grid gap-2">
+          {question.options.map((option) => {
+            const isSelected = selected === option.dosha;
+            return (
+              <button
+                key={`${question.id}-${option.dosha}`}
+                type="button"
+                onClick={() => onSelect(option.dosha)}
+                className={`w-full rounded-xl border px-4 py-3 text-left transition-all ${isSelected ? optionTone[option.dosha] : "border-border/30 bg-white/[0.02] hover:border-border/60 hover:bg-white/[0.04]"}`}
+              >
+                <span className="flex items-start gap-3">
+                  <span className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 ${isSelected ? "border-ayur-gold bg-ayur-gold" : "border-border/60"}`} />
+                  <span className={`text-sm leading-relaxed ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>{option.text}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <button type="button" onClick={onBack} disabled={quiz.currentIndex === 0 || quiz.saving} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35">
+            <ChevronLeft className="w-3.5 h-3.5" />Back
+          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onCancel} disabled={quiz.saving} className="rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground disabled:opacity-35">
+              Cancel
+            </button>
+            <button type="button" onClick={onNext} disabled={!selected || quiz.saving} className="inline-flex items-center gap-1.5 rounded-lg bg-ayur-gold px-4 py-2 text-xs font-medium text-background hover:bg-ayur-amber disabled:cursor-not-allowed disabled:opacity-45">
+              {quiz.saving ? "Saving..." : isLast ? "Analyze My Dosha" : "Next"}
+              {!isLast && <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -263,14 +362,26 @@ function MessageBubble({ message, token, photos }: { message: ChatMessage; token
   );
 }
 
-export function ChatMessages({ messages, isTyping, token, agentSteps = [], photosByMessageId = {}, onSuggestionClick }: ChatMessagesProps) {
+export function ChatMessages({
+  messages,
+  isTyping,
+  token,
+  agentSteps = [],
+  photosByMessageId = {},
+  doshaQuiz,
+  onSuggestionClick,
+  onDoshaSelect,
+  onDoshaNext,
+  onDoshaBack,
+  onDoshaCancel,
+}: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, doshaQuiz?.currentIndex]);
 
-  if (messages.length === 0 && !isTyping) {
+  if (messages.length === 0 && !isTyping && !doshaQuiz?.active) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
         <div className="text-center mb-12">
@@ -311,6 +422,15 @@ export function ChatMessages({ messages, isTyping, token, agentSteps = [], photo
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} token={token} photos={photosByMessageId[msg.id]} />
         ))}
+        {doshaQuiz?.active && onDoshaSelect && onDoshaNext && onDoshaBack && onDoshaCancel && (
+          <DoshaQuizCard
+            quiz={doshaQuiz}
+            onSelect={onDoshaSelect}
+            onNext={onDoshaNext}
+            onBack={onDoshaBack}
+            onCancel={onDoshaCancel}
+          />
+        )}
         {isTyping && <TypingIndicator agentSteps={agentSteps} />}
         <div ref={bottomRef} />
       </div>
