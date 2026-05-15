@@ -242,11 +242,10 @@ function ChatApp() {
     };
     setMessages((prev) => [...prev, optimisticMessage]);
     try {
-      const authToken = await loadToken();
-      const sessionId = activeSessionId || (await createSession(authToken));
+      const sessionId = activeSessionId || (await withFreshToken((freshToken) => createSession(freshToken)));
       let uploadIds: string[] | null = null;
       if (files?.length) {
-        const uploaded = await uploadFiles(sessionId, files, content, authToken);
+        const uploaded = await withFreshToken((freshToken) => uploadFiles(sessionId, files, content, freshToken));
         uploadIds = uploaded.map((item) => item.id);
       }
       const response = await withFreshToken((freshToken) =>
@@ -288,7 +287,7 @@ function ChatApp() {
       setIsTyping(false);
       setAbortController(null);
     }
-  }, [activeSessionId, isTyping, loadToken, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage, withFreshToken, friendlyError]);
+  }, [activeSessionId, isTyping, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage, withFreshToken, friendlyError]);
 
   const handleSuggestionClick = useCallback((text: string) => {
     handleSend(text);
