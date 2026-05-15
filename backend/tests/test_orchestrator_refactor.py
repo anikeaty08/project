@@ -103,6 +103,14 @@ class TestDeterministicRouting(unittest.TestCase):
     def test_general_herb_chat_does_not_need_verification(self) -> None:
         self.assertFalse(ChatVerificationService().is_needed("Tell me about tulsi leaves"))
 
+    def test_prescription_upload_context_needs_verification(self) -> None:
+        supplement = (
+            "USER_UPLOAD rx.pdf:\n"
+            "Prescription / document upload:\n"
+            "Medication: aspirin | 81 mg | daily"
+        )
+        self.assertTrue(ChatVerificationService().is_needed("please explain this", supplement))
+
 
 class TestOrchestrationServices(unittest.TestCase):
     def test_session_title_uses_first_message(self) -> None:
