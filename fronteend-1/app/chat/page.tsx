@@ -452,9 +452,10 @@ function ChatApp() {
           freshToken
         )
       );
+      const safeQuestions = validDoshaQuestions(generatedQuestions);
       setDoshaQuiz({
         active: true,
-        questions: generatedQuestions.length ? generatedQuestions : FALLBACK_DOSHA_QUESTIONS,
+        questions: safeQuestions.length >= CHAT_DOSHA_QUESTION_COUNT ? safeQuestions.slice(0, CHAT_DOSHA_QUESTION_COUNT) : FALLBACK_DOSHA_QUESTIONS,
         currentIndex: 0,
         answers: {},
       });
