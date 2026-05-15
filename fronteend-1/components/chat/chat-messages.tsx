@@ -156,9 +156,75 @@ function MessageActions({ text }: { text: string }) {
   );
 }
 
+function sourceName(source?: string) {
+  if (!source) return "Retrieved source";
+  if (source.startsWith("http")) {
+    try {
+      return new URL(source).hostname.replace(/^www\./, "");
+    } catch {
+      return source;
+    }
+  }
+  const clean = source.replaceAll("\\", "/");
+  const name = clean.split("/").filter(Boolean).pop() || source;
+  if (name === "book.txt") return "Ayurveda Encyclopedia";
+  if (name === "herb.json") return "Herb database";
+  return name;
+}
+
+function CitationSources({ sources, messageId }: { sources: SourceItem[]; messageId: string }) {
+  const citations = (sources || [])
+    .filter((source) => source.type !== "attachment")
+    .filter((source) => source.rank && source.snippet)
+    .slice(0, 4);
+
+  if (!citations.length) return null;
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        <BookOpen className="w-3 h-3 text-ayur-gold" />
+        Sources fetched
+      </div>
+      <div className="grid gap-2">
+        {citations.map((source) => {
+          const id = `${messageId}-source-${source.rank}`;
+          const label = sourceName(source.source);
+          const content = (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ayur-gold/15 px-1.5 text-[10px] font-mono text-ayur-gold">
+                  {source.rank}
+                </span>
+                <span className="truncate text-xs font-medium text-foreground">{label}</span>
+                {source.source_type && <span className="text-[10px] text-muted-foreground">{source.source_type}</span>}
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{source.snippet}</p>
+            </>
+          );
+
+          if (source.source?.startsWith("http")) {
+            return (
+              <a id={id} key={id} href={source.source} target="_blank" rel="noreferrer" className="block rounded-lg border border-white/5 bg-background/35 p-2 hover:border-ayur-gold/40 transition-colors scroll-mt-24">
+                {content}
+              </a>
+            );
+          }
+          return (
+            <div id={id} key={id} className="rounded-lg border border-white/5 bg-background/35 p-2 scroll-mt-24">
+              {content}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MessageBubble({ message, token, photos }: { message: ChatMessage; token: string; photos?: UnsplashPhoto[] }) {
   const isUser = message.role === "user";
   const attachments = (message.sources || []).filter((source) => source.type === "attachment");
+  const citationBaseId = `${message.id}-source`;
 
   return (
     <div className={`flex items-start gap-3 msg-enter ${isUser ? "flex-row-reverse" : ""}`}>
@@ -184,8 +250,9 @@ function MessageBubble({ message, token, photos }: { message: ChatMessage; token
 
         {!isUser && photos && <UnsplashStrip photos={photos} />}
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser ? "bg-chat-user-bg rounded-tr-sm text-foreground whitespace-pre-wrap" : "bg-chat-ai-bg rounded-tl-sm text-foreground/90"}`}>
-          {isUser ? message.content : <MarkdownRenderer content={message.content} />}
+          {isUser ? message.content : <MarkdownRenderer content={message.content} citationBaseId={citationBaseId} />}
         </div>
+        {!isUser && <CitationSources sources={message.sources || []} messageId={message.id} />}
         {!isUser && <MessageActions text={message.content} />}
 
         <p className={`text-[10px] text-muted-foreground/50 font-mono px-1 ${isUser ? "text-right" : ""}`}>
