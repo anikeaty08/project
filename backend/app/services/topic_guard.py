@@ -53,6 +53,37 @@ AYURVEDA_TERMS = {
     "kaunsi plant",
 }
 
+DOSHA_PROFILE_TERMS = {
+    "thin",
+    "medium",
+    "heavy",
+    "dry",
+    "oily",
+    "normal",
+    "high",
+    "moderate",
+    "low",
+    "calm",
+    "intense",
+    "steady",
+    "body",
+    "skin",
+    "energy",
+    "temperament",
+}
+
+HEALTH_CONCERN_TERMS = {
+    "cancer",
+    "diabetes",
+    "hypertension",
+    "bp",
+    "thyroid",
+    "asthma",
+    "arthritis",
+    "pcos",
+    "pregnancy",
+}
+
 COMMON_HERB_ALIASES = {
     "ashvgandha": "ashwagandha",
     "ashvagandha": "ashwagandha",
@@ -85,6 +116,11 @@ def is_ayurveda_related(user_content: str, has_uploads: bool = False) -> bool:
     if text in SMALL_TALK:
         return True
     if any(term in text for term in AYURVEDA_TERMS):
+        return True
+    words = set(re.findall(r"[a-zA-Z]+", text))
+    profile_matches = words & DOSHA_PROFILE_TERMS
+    health_matches = words & HEALTH_CONCERN_TERMS
+    if len(profile_matches) >= 2 or (profile_matches and health_matches):
         return True
     tokens = re.findall(r"[a-zA-Z]{4,}", text)
     canonical_herbs = {term for term in AYURVEDA_TERMS if term.isalpha() and len(term) >= 5}
