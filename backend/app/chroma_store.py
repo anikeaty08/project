@@ -42,15 +42,18 @@ def upsert_chunks(
         chunk_docs = documents[start:end]
         chunk_meta = metadatas[start:end]
         chunk_emb = embeddings[start:end]
-        ids = [
-            hashlib.sha1(
+        seen_ids: dict[str, int] = {}
+        ids: list[str] = []
+        for doc, meta in zip(chunk_docs, chunk_meta, strict=False):
+            base_id = hashlib.sha1(
                 f"{meta.get('source', '')}:{meta.get('chunk_index', '')}:{hashlib.sha1(doc.encode('utf-8', errors='ignore')).hexdigest()}".encode(
                     "utf-8",
                     errors="ignore",
                 )
             ).hexdigest()
-            for doc, meta in zip(chunk_docs, chunk_meta, strict=False)
-        ]
+            count = seen_ids.get(base_id, 0)
+            seen_ids[base_id] = count + 1
+            ids.append(base_id if count == 0 else f"{base_id}-{count}")
         col.upsert(
             ids=ids, documents=chunk_docs, metadatas=chunk_meta, embeddings=chunk_emb
         )
