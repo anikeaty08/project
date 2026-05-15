@@ -118,7 +118,7 @@ def run(
         PlantImageResult(
             confidence=0.0,
             uncertainty="Could not parse plant image identification output.",
-            retrieval_query=filename,
+            retrieval_query="",
             raw_notes="Plant image analysis failed.",
         ),
     )
