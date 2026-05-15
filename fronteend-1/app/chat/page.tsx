@@ -9,6 +9,8 @@ import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatMessages, fromApiMessage, type ChatMessage } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
 import {
+  ApiError,
+  AUTH_EXPIRED_MESSAGE,
   deleteJson,
   getJson,
   postJson,
@@ -89,6 +91,22 @@ function ChatApp() {
     return clerkToken;
   }, [getToken, isLoaded, isSignedIn]);
 
+  const withFreshToken = useCallback(async <T,>(request: (authToken: string) => Promise<T>): Promise<T> => {
+    try {
+      return await request(await loadToken());
+    } catch (exc) {
+      if (exc instanceof ApiError && exc.status === 401) {
+        return await request(await loadToken());
+      }
+      throw exc;
+    }
+  }, [loadToken]);
+
+  const friendlyError = useCallback((exc: unknown) => {
+    if (exc instanceof ApiError && exc.status === 401) return AUTH_EXPIRED_MESSAGE;
+    return exc instanceof Error ? exc.message : String(exc);
+  }, []);
+
   const refreshSessions = useCallback(async (authToken: string) => {
     const list = await getJson<SessionItem[]>("/sessions/", authToken);
     setSessions(list);
@@ -115,69 +133,64 @@ function ChatApp() {
     async function boot() {
       setError("");
       try {
-        const authToken = await loadToken();
-        const list = await refreshSessions(authToken);
+        const list = await withFreshToken((authToken) => refreshSessions(authToken));
         if (cancelled) return;
         if (list.length > 0) {
           setActiveSessionId(list[0].id);
-          await loadMessages(list[0].id, authToken);
+          await withFreshToken((authToken) => loadMessages(list[0].id, authToken));
         } else {
-          await createSession(authToken);
+          await withFreshToken((authToken) => createSession(authToken));
         }
       } catch (exc) {
-        if (!cancelled) setError(exc instanceof Error ? exc.message : String(exc));
+        if (!cancelled) setError(friendlyError(exc));
       }
     }
     boot();
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, loadToken, refreshSessions, loadMessages, createSession]);
+  }, [isLoaded, isSignedIn, withFreshToken, refreshSessions, loadMessages, createSession, friendlyError]);
 
   const handleSelectSession = useCallback(async (id: string) => {
     setError("");
     try {
-      const authToken = token || (await loadToken());
       setActiveSessionId(id);
-      await loadMessages(id, authToken);
+      await withFreshToken((authToken) => loadMessages(id, authToken));
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : String(exc));
+      setError(friendlyError(exc));
     }
-  }, [token, loadToken, loadMessages]);
+  }, [withFreshToken, loadMessages, friendlyError]);
 
   const handleNewChat = useCallback(async () => {
     setError("");
     try {
-      const authToken = token || (await loadToken());
-      await createSession(authToken);
+      await withFreshToken((authToken) => createSession(authToken));
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : String(exc));
+      setError(friendlyError(exc));
     }
-  }, [token, loadToken, createSession]);
+  }, [withFreshToken, createSession, friendlyError]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     if (deletingSessionId) return;
     setError("");
     setDeletingSessionId(id);
     try {
-      const authToken = token || (await loadToken());
       setSessions((prev) => prev.filter((session) => session.id !== id));
-      await deleteJson(`/sessions/${id}`, authToken);
-      const list = await refreshSessions(authToken);
+      await withFreshToken((authToken) => deleteJson(`/sessions/${id}`, authToken));
+      const list = await withFreshToken((authToken) => refreshSessions(authToken));
       if (activeSessionId === id) {
         if (list.length > 0) {
           setActiveSessionId(list[0].id);
-          await loadMessages(list[0].id, authToken);
+          await withFreshToken((authToken) => loadMessages(list[0].id, authToken));
         } else {
           setActiveSessionId(null);
           setMessages([]);
         }
       }
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : String(exc));
+      setError(friendlyError(exc));
       try {
-        const authToken = token || (await loadToken());
-        await refreshSessions(authToken);
+        await withFreshToken((authToken) => refreshSessions(authToken));
       } catch {
         // Keep the original delete error visible.
       }
@@ -185,11 +198,11 @@ function ChatApp() {
     finally {
       setDeletingSessionId(null);
     }
-  }, [activeSessionId, token, loadToken, refreshSessions, loadMessages, deletingSessionId]);
+  }, [activeSessionId, withFreshToken, refreshSessions, loadMessages, deletingSessionId, friendlyError]);
 
-  const loadUnsplashForMessage = useCallback(async (message: ChatMessage) => {
+  const loadUnsplashForMessage = useCallback(async (userText: string, message: ChatMessage) => {
     try {
-      const intent = await postPublicJson<UnsplashIntent>("/unsplash/intent", { text: message.content });
+      const intent = await postPublicJson<UnsplashIntent>("/unsplash/intent", { text: `${userText}\n\n${message.content}` });
       if (!intent.show_images || !intent.keyword) return;
       const photos = await postPublicJson<UnsplashPhoto[]>("/unsplash/search", { keyword: intent.keyword, per_page: 3 });
       if (photos.length) {
@@ -229,18 +242,20 @@ function ChatApp() {
     };
     setMessages((prev) => [...prev, optimisticMessage]);
     try {
-      const authToken = token || (await loadToken());
+      const authToken = await loadToken();
       const sessionId = activeSessionId || (await createSession(authToken));
       let uploadIds: string[] | null = null;
       if (files?.length) {
         const uploaded = await uploadFiles(sessionId, files, content, authToken);
         uploadIds = uploaded.map((item) => item.id);
       }
-      const response = await postJson<ChatResponse>(
-        `/sessions/${sessionId}/chat/`,
-        { content, language: null, upload_ids: uploadIds },
-        authToken,
-        controller.signal
+      const response = await withFreshToken((freshToken) =>
+        postJson<ChatResponse>(
+          `/sessions/${sessionId}/chat/`,
+          { content, language: null, upload_ids: uploadIds },
+          freshToken,
+          controller.signal
+        )
       );
       if (response.user_message && response.assistant_message) {
         const realUser = fromApiMessage(response.user_message as MessageItem);
@@ -251,9 +266,9 @@ function ChatApp() {
           realAssistant,
         ]);
         speak(realAssistant.content);
-        loadUnsplashForMessage(realAssistant);
+        loadUnsplashForMessage(content, realAssistant);
       } else {
-        await loadMessages(sessionId, authToken);
+        await withFreshToken((freshToken) => loadMessages(sessionId, freshToken));
         speak(response.answer);
       }
       if (response.session_title) {
@@ -261,19 +276,19 @@ function ChatApp() {
           session.id === sessionId ? { ...session, title: response.session_title || session.title } : session
         ));
       }
-      await refreshSessions(authToken);
+      await withFreshToken((freshToken) => refreshSessions(freshToken));
     } catch (exc) {
       setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
       if (exc instanceof DOMException && exc.name === "AbortError") {
         setError("Response stopped.");
       } else {
-        setError(exc instanceof Error ? exc.message : String(exc));
+        setError(friendlyError(exc));
       }
     } finally {
       setIsTyping(false);
       setAbortController(null);
     }
-  }, [activeSessionId, token, isTyping, loadToken, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage]);
+  }, [activeSessionId, isTyping, loadToken, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage, withFreshToken, friendlyError]);
 
   const handleSuggestionClick = useCallback((text: string) => {
     handleSend(text);
