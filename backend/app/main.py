@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import chat, health, ingest, sessions, unsplash_intent
+from app.routers import chat, health, ingest, sessions, unsplash_intent, prakriti
 
 logging.basicConfig(level=logging.INFO)
 
@@ -38,6 +38,7 @@ app.include_router(chat.router)
 app.include_router(ingest.router)
 app.include_router(sessions.router)
 app.include_router(unsplash_intent.router)
+app.include_router(prakriti.router)
 
 
 @app.get("/")
