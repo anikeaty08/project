@@ -19,6 +19,17 @@ class UploadContext:
     pending_notes: list[str]
 
 
+@dataclass(frozen=True)
+class AgentStep:
+    key: str
+    label: str
+    status: str = "completed"
+
+
+def agent_step(key: str, label: str, status: str = "completed") -> dict[str, str]:
+    return {"key": key, "label": label, "status": status}
+
+
 def message_to_response(row: ChatMessage) -> dict[str, Any]:
     return {
         "id": str(row.id),
