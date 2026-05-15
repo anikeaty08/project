@@ -1,27 +1,20 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import herbImages from "@/lib/herb-images.json";
 
-// Simple leaf/herb icon for all herbs
-const HerbIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-    <path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z"/>
-  </svg>
-);
+const imageMap = herbImages as Record<string, string[]>;
 
-const integrations = [
-  { name: "Ashwagandha", category: "Rasayana" },
-  { name: "Brahmi", category: "Medhya" },
-  { name: "Triphala", category: "Digestive" },
-  { name: "Turmeric", category: "Anti-inflammatory" },
-  { name: "Tulsi", category: "Adaptogen" },
-  { name: "Shatavari", category: "Rejuvenative" },
-  { name: "Guduchi", category: "Immune" },
-  { name: "Neem", category: "Purifying" },
-  { name: "Ginger", category: "Digestive" },
-  { name: "Amalaki", category: "Rasayana" },
-  { name: "Haritaki", category: "Cleansing" },
-  { name: "Licorice", category: "Soothing" },
+const remedies = [
+  { name: "Ashwagandha", key: "ashwagandha", category: "Rasayana" },
+  { name: "Brahmi", key: "brahmi", category: "Medhya" },
+  { name: "Triphala", key: "triphala", category: "Digestive" },
+  { name: "Turmeric", key: "turmeric", category: "Anti-inflammatory" },
+  { name: "Tulsi", key: "tulasi", category: "Adaptogen" },
+  { name: "Shatavari", key: "shatavari", category: "Rejuvenative" },
+  { name: "Guduchi", key: "guduchi", category: "Immune" },
+  { name: "Neem", key: "neem", category: "Purifying" },
 ];
 
 export function HerbalRemediesSection() {
@@ -43,119 +36,125 @@ export function HerbalRemediesSection() {
   }, []);
 
   return (
-    <section id="remedies" ref={sectionRef} className="relative overflow-hidden">
-
-      {/* Header — centré verticalement sur l'image */}
-      <div className="relative z-10 pt-32 lg:pt-40 text-center">
-        <span className={`inline-flex items-center gap-4 text-sm font-mono text-muted-foreground mb-8 transition-all duration-700 justify-center ${
-          isVisible ? "opacity-100" : "opacity-0"
-        }`}>
+    <section id="remedies" ref={sectionRef} className="relative overflow-hidden py-28 lg:py-36">
+      <div className="relative z-10 text-center px-6">
+        <span
+          className={`inline-flex items-center gap-4 text-sm font-mono text-muted-foreground mb-8 transition-all duration-700 justify-center ${
+            isVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
           <span className="w-12 h-px bg-foreground/20" />
           Herbal Remedies
           <span className="w-12 h-px bg-foreground/20" />
         </span>
 
-        <h2 className={`text-6xl md:text-7xl lg:text-[128px] font-display tracking-tight leading-[0.9] transition-all duration-1000 ${
-          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-        }`}>
-          Nature&apos;s
+        <h2
+          className={`text-5xl md:text-7xl lg:text-[104px] font-display tracking-tight leading-[0.95] transition-all duration-1000 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          }`}
+        >
+          Explore
           <br />
-          <span className="text-muted-foreground">pharmacy.</span>
+          <span className="text-muted-foreground">living herbs.</span>
         </h2>
 
-        <p className={`mt-8 text-xl text-muted-foreground leading-relaxed max-w-lg mx-auto transition-all duration-1000 delay-100 ${
-          isVisible ? "opacity-100" : "opacity-0"
-        }`}>
-          Discover the healing power of Ayurvedic herbs. Our knowledge base includes traditional uses, preparations, and dosha-specific recommendations.
+        <p
+          className={`mt-6 text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto transition-all duration-1000 delay-100 ${
+            isVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          Choose a plant and ask Vaidya AI about its uses, preparations, dosha fit, and safety notes.
         </p>
       </div>
 
-      {/* Full-width image */}
-      <div className={`relative left-1/2 -translate-x-1/2 w-screen -mt-16 transition-all duration-1000 delay-200 ${
-        isVisible ? "opacity-100" : "opacity-0"
-      }`}>
-        <img
-          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/connection-KeJwWPQvn6l0a7C48tCARYtNEdC92H.png"
-          alt=""
-          aria-hidden="true"
-          className="w-full h-auto object-cover"
-        />
-      </div>
+      <div className="relative z-10 mt-14 max-w-[1400px] mx-auto px-6 lg:px-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
+          {remedies.map((remedy, index) => {
+            const images = imageMap[remedy.key] || [];
+            const image = images[index % Math.max(images.length, 1)] || images[0];
 
-      {/* Integration grid — remonte sur l'image avec spacing mobile approprié */}
-      <div className="relative z-10 mt-0 lg:-mt-24 max-w-[1400px] mx-auto px-6 lg:px-12">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-16">
-          {integrations.map((integration, index) => (
-            <div
-              key={integration.name}
-              className={`group relative overflow-hidden p-6 lg:p-8 border transition-all duration-500 cursor-default ${
-                hoveredIndex === index
-                  ? "border-foreground bg-foreground/[0.04] scale-[1.02]"
-                  : "border-foreground/10 hover:border-foreground/30"
-              } ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
-              style={{
-                transitionDelay: `${index * 30 + 300}ms`,
-              }}
-              onMouseEnter={(e) => {
-                setHoveredIndex(index);
-                const rect = e.currentTarget.getBoundingClientRect();
-                setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-              }}
-              onMouseMove={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-              }}
-              onMouseLeave={() => {
-                setHoveredIndex(null);
-                setMousePos(null);
-              }}
-            >
-              {/* Cursor-following halo */}
-              {hoveredIndex === index && mousePos && (
+            return (
+              <Link
+                href={`/chat?herb=${encodeURIComponent(remedy.name)}`}
+                key={remedy.name}
+                className={`group relative min-h-[260px] overflow-hidden border transition-all duration-500 ${
+                  hoveredIndex === index
+                    ? "border-foreground bg-foreground/[0.04] scale-[1.02]"
+                    : "border-foreground/10 hover:border-foreground/30"
+                } ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+                style={{ transitionDelay: `${index * 40 + 180}ms` }}
+                onMouseEnter={(event) => {
+                  setHoveredIndex(index);
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setMousePos({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+                }}
+                onMouseMove={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setMousePos({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+                }}
+                onMouseLeave={() => {
+                  setHoveredIndex(null);
+                  setMousePos(null);
+                }}
+              >
+                {image && (
+                  <img
+                    src={image}
+                    alt={`${remedy.name} plant`}
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
+
+                {hoveredIndex === index && mousePos && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-0"
+                    style={{
+                      background: `radial-gradient(200px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255,255,255,0.1) 0%, transparent 70%)`,
+                    }}
+                  />
+                )}
+
                 <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 z-0"
-                  style={{
-                    background: `radial-gradient(200px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255,255,255,0.1) 0%, transparent 70%)`,
-                  }}
-                />
-              )}
-              {/* Category tag */}
-              <span className={`absolute top-3 right-3 text-[10px] font-mono px-2 py-0.5 transition-colors ${
-                hoveredIndex === index
-                  ? "bg-foreground text-background"
-                  : "bg-foreground/10 text-muted-foreground"
-              }`}>
-                {integration.category}
-              </span>
+                  className={`absolute top-3 right-3 z-10 text-[10px] font-mono px-2 py-0.5 transition-colors ${
+                    hoveredIndex === index
+                      ? "bg-foreground text-background"
+                      : "bg-background/75 text-foreground"
+                  }`}
+                >
+                  {remedy.category}
+                </span>
 
-              {/* Herb Icon */}
-              <div className={`w-10 h-10 mb-6 flex items-center justify-center transition-colors ${
-                hoveredIndex === index ? "text-[#eca8d6]" : "text-foreground/60"
-              }`}>
-                <HerbIcon />
-              </div>
+                <div className="absolute inset-x-0 bottom-0 z-10 p-5">
+                  <span className="font-display text-3xl tracking-tight block">{remedy.name}</span>
+                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-mono text-muted-foreground group-hover:text-foreground transition-colors">
+                    Ask about {remedy.name}
+                    <span className="group-hover:translate-x-1 transition-transform">-&gt;</span>
+                  </span>
+                </div>
 
-              <span className="font-medium block">{integration.name}</span>
-
-              {/* Animated underline */}
-              <div className="absolute bottom-0 left-0 right-0 h-px bg-foreground/20 overflow-hidden">
-                <div className={`h-full bg-foreground transition-all duration-500 ${
-                  hoveredIndex === index ? "w-full" : "w-0"
-                }`} />
-              </div>
-            </div>
-          ))}
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-foreground/20 overflow-hidden">
+                  <div
+                    className={`h-full bg-foreground transition-all duration-500 ${
+                      hoveredIndex === index ? "w-full" : "w-0"
+                    }`}
+                  />
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Bottom stats row */}
-        <div className={`flex flex-wrap items-center justify-between gap-8 pt-12 border-t border-foreground/10 transition-all duration-1000 delay-500 pb-32 lg:pb-40 ${
-          isVisible ? "opacity-100" : "opacity-0"
-        }`}>
+        <div
+          className={`flex flex-wrap items-center justify-between gap-8 pt-12 border-t border-foreground/10 transition-all duration-1000 delay-500 ${
+            isVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
           <div className="flex flex-wrap gap-12">
             {[
               { value: "500+", label: "Herbs indexed" },
-              { value: "Traditional", label: "Preparations" },
+              { value: "Book-backed", label: "RAG citations" },
               { value: "Dosha", label: "Specific guidance" },
             ].map((stat) => (
               <div key={stat.label} className="flex items-baseline gap-3">
@@ -165,10 +164,10 @@ export function HerbalRemediesSection() {
             ))}
           </div>
 
-          <a href="#" className="group inline-flex items-center gap-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/plants" className="group inline-flex items-center gap-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors">
             Explore all herbs
             <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-          </a>
+          </Link>
         </div>
       </div>
     </section>
