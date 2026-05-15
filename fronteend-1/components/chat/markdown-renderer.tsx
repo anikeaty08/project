@@ -25,6 +25,7 @@ function parseBlocks(raw: string): Block[] {
   const lines = raw.split("\n");
   const blocks: Block[] = [];
   let i = 0;
+  let orderedIndex = 1;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -66,6 +67,7 @@ function parseBlocks(raw: string): Block[] {
         i++;
       }
       blocks.push({ type: "list", ordered: true, items });
+      orderedIndex += items.length;
       continue;
     }
 
@@ -95,7 +97,14 @@ function parseBlocks(raw: string): Block[] {
       i++;
     }
     if (paraLines.length > 0) {
-      blocks.push({ type: "paragraph", text: paraLines.join("\n") });
+      const text = paraLines.join("\n");
+      const singletonNumbered = text.match(/^1[\.\)]\s*(.+)$/s);
+      if (singletonNumbered) {
+        blocks.push({ type: "paragraph", text: `${orderedIndex}. ${singletonNumbered[1].trim()}` });
+        orderedIndex += 1;
+      } else {
+        blocks.push({ type: "paragraph", text });
+      }
     }
   }
 
