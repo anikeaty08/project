@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import time
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from jwt import PyJWKClient
 
 from app.config import settings
 from app.models.chat import ChatSession
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -90,15 +93,14 @@ def verify_clerk_token(token: str) -> AuthUser:
         sub = str(claims.get("sub") or "").strip()
         if not sub:
             raise HTTPException(status_code=401, detail="Token is missing subject")
-        if int(claims.get("exp", 0)) < int(time.time()):
-            raise HTTPException(status_code=401, detail="Token expired")
         return AuthUser(clerk_user_id=sub, claims=claims)
     except HTTPException:
         raise
     except Exception as exc:
+        logger.info("Clerk token verification failed: %s", exc.__class__.__name__)
         raise HTTPException(
             status_code=401,
-            detail=f"Invalid Clerk token: {exc.__class__.__name__}",
+            detail="Invalid or expired sign-in session",
         ) from exc
 
 
