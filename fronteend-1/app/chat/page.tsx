@@ -216,6 +216,7 @@ function ChatApp() {
   const [photosByMessageId, setPhotosByMessageId] = useState<Record<string, UnsplashPhoto[]>>({});
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
+  const [doshaQuiz, setDoshaQuiz] = useState<DoshaQuizState | null>(null);
 
   const speak = useCallback((text: string) => {
     if (!voiceReplies || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -381,9 +382,129 @@ function ChatApp() {
     setAgentSteps([]);
   }, [abortController]);
 
+  const startDoshaQuiz = useCallback((content = "Analyze my Dosha") => {
+    const now = new Date();
+    setError("");
+    setIsTyping(false);
+    setAgentSteps([]);
+    setAbortController(null);
+    setPhotosByMessageId({});
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `dosha-user-${Date.now()}`,
+        role: "user",
+        content,
+        timestamp: now,
+      },
+      {
+        id: `dosha-assistant-${Date.now()}`,
+        role: "assistant",
+        content: "Sure. I will ask 12 quick MCQ cards and then analyze your Vata, Pitta, and Kapha balance.",
+        timestamp: now,
+      },
+    ]);
+    setDoshaQuiz({
+      active: true,
+      questions: CHAT_DOSHA_QUESTIONS,
+      currentIndex: 0,
+      answers: {},
+    });
+  }, []);
+
+  const handleDoshaSelect = useCallback((dosha: Dosha) => {
+    setDoshaQuiz((prev) => {
+      if (!prev?.active) return prev;
+      const question = prev.questions[prev.currentIndex];
+      if (!question) return prev;
+      return {
+        ...prev,
+        answers: {
+          ...prev.answers,
+          [question.id]: dosha,
+        },
+      };
+    });
+  }, []);
+
+  const handleDoshaBack = useCallback(() => {
+    setDoshaQuiz((prev) => {
+      if (!prev?.active) return prev;
+      return { ...prev, currentIndex: Math.max(0, prev.currentIndex - 1) };
+    });
+  }, []);
+
+  const handleDoshaCancel = useCallback(() => {
+    setDoshaQuiz(null);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `dosha-cancel-${Date.now()}`,
+        role: "assistant",
+        content: "No problem. I stopped the Dosha analysis flow.",
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
+
+  const handleDoshaNext = useCallback(async () => {
+    const quiz = doshaQuiz;
+    if (!quiz?.active || quiz.saving) return;
+    const question = quiz.questions[quiz.currentIndex];
+    if (!question || !quiz.answers[question.id]) return;
+    if (quiz.currentIndex < quiz.questions.length - 1) {
+      setDoshaQuiz((prev) => prev ? { ...prev, currentIndex: prev.currentIndex + 1 } : prev);
+      return;
+    }
+
+    setDoshaQuiz((prev) => prev ? { ...prev, saving: true } : prev);
+    const result = calculateResults(quiz.answers);
+    let saved = false;
+    try {
+      await withFreshToken((freshToken) =>
+        savePrakritiResult(
+          {
+            mode: "chat-mcq",
+            question_count: quiz.questions.length,
+            prakriti_name: result.prakritiName,
+            primary_dosha: result.primary,
+            secondary_dosha: result.secondary,
+            vata_pct: result.percentages.vata,
+            pitta_pct: result.percentages.pitta,
+            kapha_pct: result.percentages.kapha,
+            answers_json: quiz.answers as unknown as Record<string, string>,
+            focus_area: "chat",
+          },
+          freshToken
+        )
+      );
+      saved = true;
+    } catch {
+      saved = false;
+      setError("Dosha analysis is ready, but I could not save it to Prakriti history.");
+    }
+
+    const analysis = buildDoshaAnalysisMessage(quiz.answers, saved);
+    setDoshaQuiz(null);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `dosha-result-${Date.now()}`,
+        role: "assistant",
+        content: analysis,
+        timestamp: new Date(),
+      },
+    ]);
+    speak(analysis);
+  }, [doshaQuiz, speak, withFreshToken]);
+
   const handleSend = useCallback(async (text: string, files?: File[]) => {
     const content = text.trim() || (files?.length ? "Please help me with the attached file(s)." : "");
     if (!content || isTyping) return;
+    if (!files?.length && isDoshaAnalysisTrigger(content)) {
+      startDoshaQuiz(content);
+      return;
+    }
     setError("");
     setIsTyping(true);
     setAgentSteps(predictedSteps(content, Boolean(files?.length)));
@@ -452,7 +573,7 @@ function ChatApp() {
       setAbortController(null);
       setAgentSteps([]);
     }
-  }, [activeSessionId, isTyping, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage, withFreshToken, friendlyError]);
+  }, [activeSessionId, isTyping, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage, withFreshToken, friendlyError, startDoshaQuiz]);
 
   const handleSuggestionClick = useCallback((text: string) => {
     handleSend(text);
