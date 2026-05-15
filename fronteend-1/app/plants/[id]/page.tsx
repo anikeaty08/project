@@ -16,6 +16,9 @@ import {
   Sprout,
   LogOut,
   Share2,
+  Eye,
+  ScrollText,
+  Stethoscope,
 } from "lucide-react";
 import { plants } from "@/lib/plants-data";
 import { allHerbDetails } from "@/lib/herb-details-index";
