@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from typing import Any
 
 import pymupdf
@@ -84,6 +85,126 @@ def _fallback_parse(filename: str, text: str) -> PrescriptionDocumentResult:
     )
 
 
+def _clean_medication_name(line: str) -> str:
+    name = re.sub(r"^\s*\d+\.\s*", "", line).strip()
+    name = re.sub(r"^(tab\.?|tablet|cap\.?|capsule|syr\.?)\s+", "", name, flags=re.IGNORECASE)
+    return name.strip(" :-")
+
+
+def _extract_labeled_value(lines: list[str], label: str) -> str:
+    label_lower = label.lower()
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        lower = stripped.lower()
+        if lower == label_lower and index + 1 < len(lines):
+            return lines[index + 1].strip()
+        prefix = f"{label_lower}:"
+        if lower.startswith(prefix):
+            return stripped[len(prefix):].strip()
+    return ""
+
+
+def _doctor_from_lines(lines: list[str]) -> str:
+    for line in lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("dr."):
+            return stripped
+    return ""
+
+
+def _line_starts_medication(line: str) -> bool:
+    return bool(re.match(r"^\s*\d+\.\s+\S", line))
+
+
+def _parse_medication_block(block: list[str]) -> MedicationItem:
+    if not block:
+        return MedicationItem()
+    name = _clean_medication_name(block[0])
+    dosage = ""
+    timing = ""
+    details: list[str] = []
+    current_label = ""
+    for raw_line in block[1:]:
+        line = raw_line.strip()
+        label_match = re.match(r"^([A-Za-z][A-Za-z ]+):\s*(.*)$", line)
+        if label_match:
+            current_label = label_match.group(1).strip().lower()
+            value = label_match.group(2).strip()
+        else:
+            value = line
+        if not value:
+            continue
+        if current_label == "dosage":
+            dosage = f"{dosage} {value}".strip()
+        elif current_label == "timing":
+            timing = f"{timing} {value}".strip()
+        elif current_label in {"instructions", "anupana", "purpose"}:
+            details.append(value)
+    frequency_parts = [part for part in (dosage, timing, *details) if part]
+    return MedicationItem(name=name, strength=dosage, frequency=" ".join(frequency_parts)[:500])
+
+
+def _extract_medications(lines: list[str]) -> list[MedicationItem]:
+    meds: list[MedicationItem] = []
+    current: list[str] = []
+    in_rx = False
+    stop_headers = (
+        "pathy",
+        "apathya",
+        "next visit",
+        "(signature)",
+        "clinic seal",
+        "chief complaints",
+        "ayurvedic diagnosis",
+    )
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if not stripped:
+            continue
+        if lower.startswith("rx"):
+            in_rx = True
+            continue
+        if in_rx and any(lower.startswith(header) for header in stop_headers):
+            break
+        if not in_rx:
+            continue
+        if _line_starts_medication(stripped):
+            if current:
+                med = _parse_medication_block(current)
+                if med.name:
+                    meds.append(med)
+            current = [stripped]
+        elif current:
+            current.append(stripped)
+    if current:
+        med = _parse_medication_block(current)
+        if med.name:
+            meds.append(med)
+    return meds
+
+
+def _parse_text_prescription(text: str) -> PrescriptionDocumentResult:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    medications = _extract_medications(lines)
+    doctor = _doctor_from_lines(lines)
+    date = _extract_labeled_value(lines, "Date")
+    query_parts = [med.name for med in medications]
+    if date:
+        query_parts.append(date)
+    if doctor:
+        query_parts.append(doctor)
+    return PrescriptionDocumentResult(
+        medications=medications,
+        doctor=doctor,
+        date=date,
+        raw_notes=text[:3000],
+        confidence=0.82 if medications else 0.72,
+        retrieval_query=" ".join(query_parts).strip()[:600] or text[:500],
+        provenance="text_extract",
+    )
+
+
 def _merge_page_parses(pages: list[PrescriptionDocumentResult], filename: str) -> PrescriptionDocumentResult:
     if not pages:
         return _fallback_parse(filename, "")
@@ -160,9 +281,6 @@ def _normalize(parsed: PrescriptionDocumentResult, filename: str) -> dict[str, A
 
 
 def run(filename: str, mime_type: str, file_bytes: bytes) -> dict[str, Any]:
-    if not settings.openai_api_key:
-        raise ValueError("OPENAI_API_KEY is not set")
-
     mime = (mime_type or "").split(";")[0].strip().lower()
     text = ""
     if mime == "application/pdf":
@@ -171,14 +289,7 @@ def run(filename: str, mime_type: str, file_bytes: bytes) -> dict[str, Any]:
         vision_pages_used = 0
         for index, page_text in enumerate(page_texts):
             if len(page_text.strip()) >= settings.prescription_extraction_min_chars:
-                page_parses.append(
-                    PrescriptionDocumentResult(
-                        raw_notes=page_text[:3000],
-                        confidence=0.72,
-                        retrieval_query=page_text[:500],
-                        provenance="text_extract",
-                    )
-                )
+                page_parses.append(_parse_text_prescription(page_text))
                 continue
             if vision_pages_used < settings.vision_pdf_max_pages:
                 image_url = _pdf_page_as_png_base64(file_bytes, index)
