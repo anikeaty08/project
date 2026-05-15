@@ -21,6 +21,7 @@ from app.services.chat_agent_graph import ChatAgentGraph
 from app.services.chat_repository import ChatRepository, session_title_from_message
 from app.services.chat_verification import ChatVerificationService
 from app.services.chat_models import UploadContext
+from app.services.language_preferences import requested_language
 from app.services.topic_guard import classify_ayurveda_topic, is_ayurveda_related, off_topic_response
 from app.services.upload_context import UploadContextService
 from app.services.upload_processing import UploadProcessingService
@@ -208,6 +209,23 @@ class TestOrchestrationServices(unittest.TestCase):
         self.assertEqual(classify_ayurveda_topic("yes", recent_messages=messages), "contextual")
         self.assertEqual(classify_ayurveda_topic("continue", recent_messages=messages), "contextual")
         self.assertEqual(classify_ayurveda_topic("tell me more", recent_messages=messages), "contextual")
+
+    def test_topic_guard_allows_kannada_language_preference(self) -> None:
+        self.assertEqual(classify_ayurveda_topic("talk to me in kannada"), "contextual")
+        self.assertEqual(requested_language("talk to me in kannada"), "kn")
+
+    def test_agent_graph_routes_language_preference_to_direct_answer(self) -> None:
+        graph = ChatAgentGraph()
+        state = {
+            "user_content": "talk to me in kannada",
+            "uploads": [],
+            "trimmed_messages": [{"role": "user", "content": "talk to me in kannada"}],
+        }
+        updated = graph._save_user_message.__func__(graph, state) if False else state
+        updated["off_topic"] = False
+        updated["direct_answer"] = "ಖಂಡಿತ. ಇಂದಿನಿಂದ ನಾನು ನಿಮಗೆ ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸುತ್ತೇನೆ."
+        updated["direct_summary_delta"] = "User prefers Kannada responses."
+        self.assertEqual(graph._route_after_user_message(updated), "direct")
 
     def test_topic_guard_blocks_unrelated_requests_even_after_ayurveda_context(self) -> None:
         messages = [
