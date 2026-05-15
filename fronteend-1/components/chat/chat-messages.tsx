@@ -54,37 +54,15 @@ const suggestions = [
 ];
 
 function TypingIndicator({ agentSteps }: { agentSteps: AgentStep[] }) {
-  const iconForStep = (key: string) => {
-    if (key === "safety") return ShieldCheck;
-    if (key === "answer") return Sparkles;
-    if (key === "compare") return Brain;
-    if (key === "context") return Search;
-    return Brain;
-  };
-  const steps = agentSteps.length ? agentSteps : [
-    { key: "understand", label: "Reading your question" },
-    { key: "context", label: "Searching knowledge" },
-    { key: "answer", label: "Preparing answer" },
-  ];
   return (
     <div className="flex items-start gap-3 msg-enter">
       <div className="w-8 h-8 rounded-full bg-ayur-gold/15 flex items-center justify-center flex-shrink-0">
         <Leaf className="w-4 h-4 text-ayur-gold" />
       </div>
-      <div className="bg-chat-ai-bg rounded-2xl rounded-tl-sm px-4 py-3 space-y-3 min-w-[260px]">
+      <div className="bg-chat-ai-bg rounded-2xl rounded-tl-sm px-4 py-3 min-w-[180px]">
         <div className="flex items-center gap-2 text-sm text-foreground/90">
           <span className="w-2 h-2 rounded-full bg-ayur-gold animate-pulse" />
           Vaidya is thinking
-        </div>
-        <div className="grid gap-2">
-          {steps.map((step) => {
-            const StepIcon = iconForStep(step.key);
-            return (
-            <div key={step.key} className="flex items-center gap-2 text-xs text-muted-foreground">
-              <StepIcon className="w-3.5 h-3.5 text-ayur-gold/70" />
-              <span>{step.label}</span>
-            </div>
-          )})}
         </div>
       </div>
     </div>
