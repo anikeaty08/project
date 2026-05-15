@@ -17,6 +17,11 @@ from app.services.chat_planner import ChatPlanner
 from app.services.chat_repository import ChatRepository
 from app.services.chat_verification import ChatVerificationService
 from app.services.history_utils import messages_to_dicts, trim_messages_for_llm
+from app.services.language_preferences import (
+    language_acknowledgement,
+    language_summary_delta,
+    requested_language,
+)
 from app.services.observability import traced_stage
 from app.services.retrieval_service import RetrievalService
 from app.services.topic_guard import is_ayurveda_related, off_topic_response
@@ -78,6 +83,8 @@ class ChatGraphState(TypedDict, total=False):
     needs_verification: bool
     use_autonomous_loop: bool
     off_topic: bool
+    direct_answer: str | None
+    direct_summary_delta: str
     tool_steps: int
     steps: list[dict[str, str]]
 
@@ -104,6 +111,7 @@ class ChatAgentGraph:
         graph.add_node("validate_session", self._validate_session)
         graph.add_node("save_user_message", self._save_user_message)
         graph.add_node("refuse_off_topic", self._refuse_off_topic)
+        graph.add_node("direct_answer", self._direct_answer)
         graph.add_node("plan_context", self._plan_context)
         graph.add_node("fast_tools", self._fast_tools)
         graph.add_node("bounded_tool_loop", self._bounded_tool_loop)
@@ -117,6 +125,7 @@ class ChatAgentGraph:
             self._route_after_user_message,
             {
                 "refuse": "refuse_off_topic",
+                "direct": "direct_answer",
                 "plan": "plan_context",
             },
         )
@@ -131,6 +140,7 @@ class ChatAgentGraph:
         graph.add_edge("fast_tools", "generate_answer")
         graph.add_edge("bounded_tool_loop", "generate_answer")
         graph.add_edge("refuse_off_topic", "save_assistant_message")
+        graph.add_edge("direct_answer", "save_assistant_message")
         graph.add_edge("generate_answer", "save_assistant_message")
         graph.add_edge("save_assistant_message", END)
         return graph.compile()
@@ -140,6 +150,8 @@ class ChatAgentGraph:
         state = self._save_user_message(state)
         if self._route_after_user_message(state) == "refuse":
             state = self._refuse_off_topic(state)
+        elif self._route_after_user_message(state) == "direct":
+            state = self._direct_answer(state)
         else:
             state = self._plan_context(state)
             state = self._bounded_tool_loop(state) if self._route_after_plan(state) == "loop" else self._fast_tools(state)
@@ -217,10 +229,32 @@ class ChatAgentGraph:
             has_uploads=bool(state["uploads"]),
             recent_messages=trimmed,
         )
+        language = requested_language(state["user_content"])
+        if language:
+            state["language"] = language
+            state["direct_answer"] = language_acknowledgement(language)
+            state["direct_summary_delta"] = language_summary_delta(language)
+        else:
+            state["direct_answer"] = None
+            state["direct_summary_delta"] = ""
         return state
 
     def _route_after_user_message(self, state: ChatGraphState) -> str:
+        if state.get("direct_answer"):
+            return "direct"
         return "refuse" if state.get("off_topic") else "plan"
+
+    def _direct_answer(self, state: ChatGraphState) -> ChatGraphState:
+        self._append_step(state, "preference", "Saving preference")
+        state["plan"] = RetrievalPlan(
+            query=state["user_content"][:500],
+            summary_delta=state.get("direct_summary_delta", ""),
+        )
+        state["sources"] = []
+        state["context"] = ""
+        state["supplement"] = None
+        state["answer"] = state.get("direct_answer") or ""
+        return state
 
     def _refuse_off_topic(self, state: ChatGraphState) -> ChatGraphState:
         self._append_step(state, "scope", "Checking Ayurveda scope")
