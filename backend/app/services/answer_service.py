@@ -14,10 +14,17 @@ class AnswerService:
         language: str | None,
         supplement: str | None,
     ) -> str:
-        return run_rag_answer_agent(
+        answer = run_rag_answer_agent(
             messages,
             session_summary,
             context,
             language,
             supplement_block=supplement,
         )
+        return ensure_citation(answer, context)
+
+
+def ensure_citation(answer: str, context: str) -> str:
+    if not context.strip() or "[" in answer:
+        return answer
+    return f"{answer.rstrip()}\n\nSource: [1]"
