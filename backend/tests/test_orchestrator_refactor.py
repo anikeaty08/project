@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 import uuid
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
@@ -71,6 +72,22 @@ class TestDeterministicRouting(unittest.TestCase):
     def test_image_medicine_routes_to_document(self) -> None:
         self.assertEqual(
             UploadProcessingService().route_kind("image/jpeg", "Can I take this 81 mg tablet?"),
+            "document",
+        )
+
+    def test_generic_image_identification_routes_to_plant(self) -> None:
+        self.assertEqual(
+            UploadProcessingService().route_kind("image/jpeg", "identify this image"),
+            "plant_image",
+        )
+
+    def test_prescription_filename_routes_image_to_document(self) -> None:
+        self.assertEqual(
+            UploadProcessingService().route_kind(
+                "image/jpeg",
+                "Please help me with the attached file(s).",
+                "rx-81mg-tablet.jpg",
+            ),
             "document",
         )
 
@@ -187,6 +204,28 @@ class TestOrchestrationServices(unittest.TestCase):
         ctx = UploadContextService().build_context([upload])
         self.assertIn("Tulsi", ctx.secondary_query)
         self.assertIn("Plant image identification upload", ctx.supplement_text)
+
+    def test_agent_graph_finishes_pending_upload_before_rag_context(self) -> None:
+        graph = ChatAgentGraph()
+        upload = SimpleNamespace(
+            status="queued",
+            parse_result_json=None,
+        )
+        completed = SimpleNamespace(
+            status="completed",
+            parse_result_json={
+                "retrieval_query": "Tulsi Ocimum tenuiflorum",
+                "flat_text": "Plant image identification upload:\nLikely plant: Tulsi",
+            },
+        )
+        with patch(
+            "app.services.chat_agent_graph.process_existing_upload",
+            return_value=completed,
+        ) as process:
+            ready = graph._ensure_uploads_ready(SimpleNamespace(), [upload], "identify this image")
+
+        process.assert_called_once()
+        self.assertEqual(ready[0].status, "completed")
 
 
 if __name__ == "__main__":
