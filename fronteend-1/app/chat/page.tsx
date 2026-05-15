@@ -401,13 +401,17 @@ function ChatApp() {
     setAgentSteps([]);
   }, [abortController]);
 
-  const startDoshaQuiz = useCallback((content = "Analyze my Dosha") => {
+  const startDoshaQuiz = useCallback(async (content = "Analyze my Dosha") => {
     const now = new Date();
     setError("");
-    setIsTyping(false);
-    setAgentSteps([]);
     setAbortController(null);
     setPhotosByMessageId({});
+    setIsTyping(true);
+    setAgentSteps([
+      { key: "understand", label: "Preparing Dosha questions" },
+      { key: "context", label: "Generating MCQ cards" },
+      { key: "answer", label: "Building quiz" },
+    ]);
     setMessages((prev) => [
       ...prev,
       {
@@ -419,17 +423,39 @@ function ChatApp() {
       {
         id: `dosha-assistant-${Date.now()}`,
         role: "assistant",
-        content: "Sure. I will ask 12 quick MCQ cards and then analyze your Vata, Pitta, and Kapha balance.",
+        content: "Sure. I will generate 12 MCQ cards for your Dosha analysis, then calculate your Vata, Pitta, and Kapha balance.",
         timestamp: now,
       },
     ]);
-    setDoshaQuiz({
-      active: true,
-      questions: CHAT_DOSHA_QUESTIONS,
-      currentIndex: 0,
-      answers: {},
-    });
-  }, []);
+    try {
+      const generatedQuestions = await withFreshToken((freshToken) =>
+        generateQuiz(
+          {
+            count: CHAT_DOSHA_QUESTION_COUNT,
+            focus: "chat dosha analysis with body, digestion, emotions, sleep, energy, and lifestyle",
+          },
+          freshToken
+        )
+      );
+      setDoshaQuiz({
+        active: true,
+        questions: generatedQuestions.length ? generatedQuestions : FALLBACK_DOSHA_QUESTIONS,
+        currentIndex: 0,
+        answers: {},
+      });
+    } catch {
+      setError("I could not generate fresh Dosha questions, so I started the fallback MCQ set.");
+      setDoshaQuiz({
+        active: true,
+        questions: FALLBACK_DOSHA_QUESTIONS,
+        currentIndex: 0,
+        answers: {},
+      });
+    } finally {
+      setIsTyping(false);
+      setAgentSteps([]);
+    }
+  }, [withFreshToken]);
 
   const handleDoshaSelect = useCallback((dosha: Dosha) => {
     setDoshaQuiz((prev) => {
@@ -491,7 +517,7 @@ function ChatApp() {
             vata_pct: result.percentages.vata,
             pitta_pct: result.percentages.pitta,
             kapha_pct: result.percentages.kapha,
-            answers_json: quiz.answers as unknown as Record<string, string>,
+            answers_json: answersForHistory(quiz) as unknown as Record<string, string>,
             focus_area: "chat",
           },
           freshToken
