@@ -7,16 +7,16 @@ import herbImages from "@/lib/herb-images.json";
 const imageMap = herbImages as Record<string, string[]>;
 
 const remedies = [
-  { name: "Ashwagandha", key: "ashwagandha", category: "Rasayana" },
-  { name: "Brahmi", key: "brahmi", category: "Medhya" },
-  { name: "Triphala", key: "triphala", category: "Digestive" },
-  { name: "Turmeric", key: "turmeric", category: "Anti-inflammatory" },
-  { name: "Tulsi", key: "tulasi", category: "Adaptogen" },
-  { name: "Shatavari", key: "shatavari", category: "Rejuvenative" },
-  { name: "Guduchi", key: "guduchi", category: "Immune" },
-  { name: "Neem", key: "neem", category: "Purifying" },
-  { name: "Ginger", key: "ginger", category: "Digestive" },
-  { name: "Amalaki", key: "amalaki", category: "Rasayana" },
+  { name: "Ashwagandha", key: "ashwagandha", category: "Rasayana", hint: "Stress and stamina" },
+  { name: "Brahmi", key: "brahmi", category: "Medhya", hint: "Memory and focus" },
+  { name: "Triphala", key: "triphala", category: "Digestive", hint: "Gut and detox" },
+  { name: "Turmeric", key: "turmeric", category: "Anti-inflammatory", hint: "Inflammation support" },
+  { name: "Tulsi", key: "tulasi", category: "Adaptogen", hint: "Immunity and breath" },
+  { name: "Shatavari", key: "shatavari", category: "Rejuvenative", hint: "Cooling nourishment" },
+  { name: "Guduchi", key: "guduchi", category: "Immune", hint: "Fever and immunity" },
+  { name: "Neem", key: "neem", category: "Purifying", hint: "Skin and cleansing" },
+  { name: "Ginger", key: "ginger", category: "Digestive", hint: "Agni and nausea" },
+  { name: "Amalaki", key: "amalaki", category: "Rasayana", hint: "Vitamin C tonic" },
 ];
 
 export function HerbalRemediesSection() {
@@ -92,7 +92,8 @@ export function HerbalRemediesSection() {
               <Link
                 href={`/chat?herb=${encodeURIComponent(remedy.name)}`}
                 key={remedy.name}
-                className={`group relative min-h-[260px] overflow-hidden border transition-all duration-500 ${
+                aria-label={`Ask Vaidya AI about ${remedy.name}`}
+                className={`group relative min-h-[260px] overflow-hidden border transition-all duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ayur-gold ${
                   hoveredIndex === index
                     ? "border-foreground bg-foreground/[0.04] scale-[1.02]"
                     : "border-foreground/10 hover:border-foreground/30"
@@ -143,8 +144,9 @@ export function HerbalRemediesSection() {
 
                 <div className="absolute inset-x-0 bottom-0 z-10 p-5">
                   <span className="font-display text-3xl tracking-tight block">{remedy.name}</span>
-                  <span className="mt-3 inline-flex items-center gap-2 text-xs font-mono text-muted-foreground group-hover:text-foreground transition-colors">
-                    Ask about {remedy.name}
+                  <span className="mt-1 block text-xs text-muted-foreground/80">{remedy.hint}</span>
+                  <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-background/80 px-3 py-1.5 text-xs font-mono text-foreground border border-foreground/10 group-hover:border-ayur-gold/60 transition-colors">
+                    Ask Vaidya
                     <span className="group-hover:translate-x-1 transition-transform">-&gt;</span>
                   </span>
                 </div>
