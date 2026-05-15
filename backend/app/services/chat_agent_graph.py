@@ -315,6 +315,9 @@ class ChatAgentGraph:
         session_id = state["session_id"]
         with traced_stage(trace_id, session_id, "chat.save_assistant"):
             state["memory"].merge_summary_delta(state["session"], state["plan"].summary_delta)
+            remember_turn = getattr(state["memory"], "remember_turn", None)
+            if remember_turn:
+                remember_turn(state["session"], state["user_content"], state["answer"])
             self.repo.touch_session(state["session"])
             assistant_row = self.repo.add_message(
                 state["db"],

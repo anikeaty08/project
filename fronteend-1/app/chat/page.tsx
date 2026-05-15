@@ -128,6 +128,8 @@ function ChatApp() {
   const searchParams = useSearchParams();
   const herbParam = searchParams.get("herb");
   const herbSentRef = useRef(false);
+  const bootStartedRef = useRef(false);
+  const creatingSessionRef = useRef<Promise<string> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
@@ -189,15 +191,25 @@ function ChatApp() {
   }, []);
 
   const createSession = useCallback(async (authToken: string) => {
+    if (creatingSessionRef.current) return creatingSessionRef.current;
+    creatingSessionRef.current = (async () => {
     const created = await postJson<{ id: string }>("/sessions/", {}, authToken);
     setActiveSessionId(created.id);
     setMessages([]);
     await refreshSessions(authToken);
     return created.id;
+    })();
+    try {
+      return await creatingSessionRef.current;
+    } finally {
+      creatingSessionRef.current = null;
+    }
   }, [refreshSessions]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
+    if (bootStartedRef.current) return;
+    bootStartedRef.current = true;
     let cancelled = false;
     async function boot() {
       setError("");

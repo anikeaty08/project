@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import chroma_store
@@ -109,6 +109,25 @@ def create_session(
     db: Session = Depends(get_db),
 ):
     title = (body.title or "").strip() or "New chat"
+    if title == "New chat":
+        existing = db.scalars(
+            select(ChatSession)
+            .outerjoin(ChatMessage, ChatMessage.session_id == ChatSession.id)
+            .where(
+                ChatSession.clerk_user_id == auth_user.clerk_user_id,
+                ChatSession.title.in_(["New chat", "Untitled chat"]),
+            )
+            .group_by(ChatSession.id)
+            .having(func.count(ChatMessage.id) == 0)
+            .order_by(ChatSession.created_at.desc())
+            .limit(1)
+        ).first()
+        if existing is not None:
+            return CreateSessionResponse(
+                id=str(existing.id),
+                title=existing.title or "New chat",
+                created_at=existing.created_at,
+            )
     s = ChatSession(title=title, clerk_user_id=auth_user.clerk_user_id)
     db.add(s)
     db.commit()
