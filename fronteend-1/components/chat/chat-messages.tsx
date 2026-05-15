@@ -184,7 +184,7 @@ function CitationSources({ sources, messageId }: { sources: SourceItem[]; messag
     <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2">
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
         <BookOpen className="w-3 h-3 text-ayur-gold" />
-        Sources fetched
+        Citations
       </div>
       <div className="grid gap-2">
         {citations.map((source) => {
@@ -194,7 +194,7 @@ function CitationSources({ sources, messageId }: { sources: SourceItem[]; messag
             <>
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ayur-gold/15 px-1.5 text-[10px] font-mono text-ayur-gold">
-                  {source.rank}
+                  ^{source.rank}
                 </span>
                 <span className="truncate text-xs font-medium text-foreground">{label}</span>
                 {source.source_type && <span className="text-[10px] text-muted-foreground">{source.source_type}</span>}

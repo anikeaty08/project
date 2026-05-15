@@ -210,13 +210,13 @@ function processBasic(text: string, citationBaseId?: string): React.ReactNode {
     // Odd indices are captured groups (citation numbers)
     if (i % 2 === 1) {
       const badge = (
-        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-ayur-gold/20 text-ayur-gold text-[9px] font-mono mx-0.5 align-text-top">
-          {seg}
-        </span>
+        <sup className="ml-0.5 align-super text-[10px] font-mono text-ayur-gold">
+          ^{seg}
+        </sup>
       );
       if (citationBaseId) {
         return (
-          <a key={i} href={`#${citationBaseId}-${seg}`} className="inline-block hover:scale-110 transition-transform" aria-label={`Jump to source ${seg}`}>
+          <a key={i} href={`#${citationBaseId}-${seg}`} className="inline-block hover:text-ayur-amber transition-colors" aria-label={`Jump to source ${seg}`}>
             {badge}
           </a>
         );
