@@ -78,6 +78,25 @@ class ChatRepository:
         )
         return list(db.scalars(stmt).all())
 
+    def owned_messages_statement(self, session_id: uuid.UUID, clerk_user_id: str):
+        return (
+            select(ChatMessage)
+            .join(ChatSession, ChatMessage.session_id == ChatSession.id)
+            .where(
+                ChatMessage.session_id == session_id,
+                ChatSession.clerk_user_id == clerk_user_id,
+            )
+            .order_by(ChatMessage.created_at.asc())
+        )
+
+    def load_owned_messages(
+        self,
+        db: Session,
+        session_id: uuid.UUID,
+        clerk_user_id: str,
+    ) -> list[ChatMessage]:
+        return list(db.scalars(self.owned_messages_statement(session_id, clerk_user_id)).all())
+
     def touch_session(self, session: ChatSession) -> None:
         session.updated_at = datetime.now(timezone.utc)
 

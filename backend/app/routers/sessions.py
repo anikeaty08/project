@@ -17,12 +17,14 @@ from app.db.session import get_db
 from app.models.chat import ChatMessage, ChatSession
 from app.models.session_upload import SessionUpload
 from app.services.auth import AuthUser, require_clerk_user, verify_session_user
+from app.services.chat_repository import ChatRepository
 from app.services.chat_turn import run_chat_turn
 from app.services.prescription_upload_service import save_upload_queued
 from app.services.upload_jobs import upload_job_runner
 from app.services.upload_storage import upload_file_url
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+chat_repo = ChatRepository()
 
 
 class CreateSessionRequest(BaseModel):
@@ -169,16 +171,7 @@ def get_messages(
     if sess is None:
         raise HTTPException(status_code=404, detail="Session not found")
     verify_session_user(sess, auth_user)
-    stmt = (
-        select(ChatMessage)
-        .join(ChatSession, ChatMessage.session_id == ChatSession.id)
-        .where(
-            ChatMessage.session_id == session_id,
-            ChatSession.clerk_user_id == auth_user.clerk_user_id,
-        )
-        .order_by(ChatMessage.created_at.asc())
-    )
-    rows = db.scalars(stmt).all()
+    rows = chat_repo.load_owned_messages(db, session_id, auth_user.clerk_user_id)
     return [
         MessageItem(
             id=str(m.id),
