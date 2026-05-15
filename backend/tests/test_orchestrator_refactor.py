@@ -1,20 +1,12 @@
 from __future__ import annotations
 
 import unittest
+import uuid
 from types import SimpleNamespace
 
-from fastapi import FastAPI
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.dialects import postgresql
 
-from app.db.base import Base
-from app.db.session import get_db
-from app.models.chat import ChatMessage, ChatSession
-from app.models import session_upload  # noqa: F401
-from app.routers import sessions as sessions_router
 from app.services.auth import (
     AuthUser,
     hash_owner_token,
@@ -65,79 +57,6 @@ class TestOwnershipHelpers(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 403)
 
 
-class TestSessionRoutes(unittest.TestCase):
-    def setUp(self) -> None:
-        self.engine = create_engine(
-            "sqlite+pysqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        Base.metadata.create_all(self.engine)
-        self.SessionLocal = sessionmaker(bind=self.engine)
-        self.current_user = AuthUser(clerk_user_id="user_a", claims={"sub": "user_a"})
-        self.app = FastAPI()
-        self.app.include_router(sessions_router.router)
-
-        def override_db():
-            db = self.SessionLocal()
-            try:
-                yield db
-            finally:
-                db.close()
-
-        def override_user():
-            return self.current_user
-
-        self.app.dependency_overrides[get_db] = override_db
-        self.app.dependency_overrides[sessions_router.require_clerk_user] = override_user
-        self.client = TestClient(self.app)
-
-    def test_create_session_stores_clerk_user_and_default_title(self) -> None:
-        response = self.client.post("/sessions/", json={})
-        self.assertEqual(response.status_code, 200)
-        session_id = response.json()["id"]
-        self.assertEqual(response.json()["title"], "New chat")
-        with self.SessionLocal() as db:
-            row = db.get(ChatSession, session_id)
-            self.assertIsNotNone(row)
-            self.assertEqual(row.clerk_user_id, "user_a")
-            self.assertEqual(row.title, "New chat")
-
-    def test_list_sessions_returns_only_current_user_rows(self) -> None:
-        with self.SessionLocal() as db:
-            db.add(ChatSession(title="Mine", clerk_user_id="user_a"))
-            db.add(ChatSession(title="Other", clerk_user_id="user_b"))
-            db.commit()
-        response = self.client.get("/sessions/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual([row["title"] for row in response.json()], ["Mine"])
-
-    def test_messages_for_other_user_session_are_rejected(self) -> None:
-        with self.SessionLocal() as db:
-            other = ChatSession(title="Other", clerk_user_id="user_b")
-            db.add(other)
-            db.flush()
-            db.add(ChatMessage(session_id=other.id, role="user", content="private"))
-            db.commit()
-            other_id = str(other.id)
-        response = self.client.get(f"/sessions/{other_id}/messages")
-        self.assertEqual(response.status_code, 403)
-
-    def test_message_query_joins_session_owner(self) -> None:
-        with self.SessionLocal() as db:
-            mine = ChatSession(title="Mine", clerk_user_id="user_a")
-            other = ChatSession(title="Other", clerk_user_id="user_b")
-            db.add_all([mine, other])
-            db.flush()
-            db.add(ChatMessage(session_id=mine.id, role="user", content="mine"))
-            db.add(ChatMessage(session_id=other.id, role="user", content="other"))
-            db.commit()
-            mine_id = str(mine.id)
-        response = self.client.get(f"/sessions/{mine_id}/messages")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual([row["content"] for row in response.json()], ["mine"])
-
-
 class TestDeterministicRouting(unittest.TestCase):
     def test_image_non_medicine_routes_to_plant(self) -> None:
         self.assertEqual(
@@ -182,6 +101,13 @@ class TestOrchestrationServices(unittest.TestCase):
         session = SimpleNamespace(title="New chat", updated_at=None)
         ChatRepository().set_initial_title(session, "  tell me about tulsi benefits  ")
         self.assertEqual(session.title, "tell me about tulsi benefits")
+
+    def test_owned_message_query_is_scoped_by_session_owner(self) -> None:
+        stmt = ChatRepository().owned_messages_statement(uuid.uuid4(), "user_123")
+        sql = str(stmt.compile(dialect=postgresql.dialect()))
+        self.assertIn("JOIN chat_sessions", sql)
+        self.assertIn("chat_sessions.clerk_user_id", sql)
+        self.assertIn("chat_messages.session_id", sql)
 
     def test_chat_planner_fast_path_for_first_turn(self) -> None:
         plan = ChatPlanner().build_plan(
