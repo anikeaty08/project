@@ -56,6 +56,17 @@ export type UnsplashPhoto = {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || ""
+const AUTH_EXPIRED_MESSAGE = "Your sign-in session expired. Please refresh or sign in again."
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
 
 function apiUrl(path: string) {
   return `${API_BASE}${path}`
@@ -74,7 +85,10 @@ async function parseResponse(response: Response) {
       typeof data === "object" && data && "detail" in data
         ? (data as { detail?: unknown }).detail
         : response.statusText
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail))
+    const message = response.status === 401
+      ? AUTH_EXPIRED_MESSAGE
+      : typeof detail === "string" ? detail : JSON.stringify(detail)
+    throw new ApiError(message, response.status)
   }
   return data
 }
@@ -163,3 +177,5 @@ export async function fetchAuthedBlob(path: string, token: string): Promise<stri
   const blob = await response.blob()
   return URL.createObjectURL(blob)
 }
+
+export { AUTH_EXPIRED_MESSAGE }

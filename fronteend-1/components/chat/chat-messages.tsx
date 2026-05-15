@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck } from "lucide-react";
+import { Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
 import { fetchAuthedBlob, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
 
 export interface ChatMessage {
@@ -124,6 +124,27 @@ function UnsplashStrip({ photos }: { photos: UnsplashPhoto[] }) {
   );
 }
 
+function MessageActions({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <button onClick={copy} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors" aria-label="Copy answer">
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
 function MessageBubble({ message, token, photos }: { message: ChatMessage; token: string; photos?: UnsplashPhoto[] }) {
   const isUser = message.role === "user";
   const attachments = (message.sources || []).filter((source) => source.type === "attachment");
@@ -150,10 +171,11 @@ function MessageBubble({ message, token, photos }: { message: ChatMessage; token
           </div>
         )}
 
+        {!isUser && photos && <UnsplashStrip photos={photos} />}
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? "bg-chat-user-bg rounded-tr-sm text-foreground" : "bg-chat-ai-bg rounded-tl-sm text-foreground/90"}`}>
           {message.content}
         </div>
-        {!isUser && photos && <UnsplashStrip photos={photos} />}
+        {!isUser && <MessageActions text={message.content} />}
 
         <p className={`text-[10px] text-muted-foreground/50 font-mono px-1 ${isUser ? "text-right" : ""}`}>
           {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
