@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
 import { fetchAuthedBlob, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
+import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 
 export interface ChatMessage {
   id: string;
@@ -172,8 +173,8 @@ function MessageBubble({ message, token, photos }: { message: ChatMessage; token
         )}
 
         {!isUser && photos && <UnsplashStrip photos={photos} />}
-        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? "bg-chat-user-bg rounded-tr-sm text-foreground" : "bg-chat-ai-bg rounded-tl-sm text-foreground/90"}`}>
-          {message.content}
+        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser ? "bg-chat-user-bg rounded-tr-sm text-foreground whitespace-pre-wrap" : "bg-chat-ai-bg rounded-tl-sm text-foreground/90"}`}>
+          {isUser ? message.content : <MarkdownRenderer content={message.content} />}
         </div>
         {!isUser && <MessageActions text={message.content} />}
 
