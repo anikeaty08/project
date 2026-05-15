@@ -17,6 +17,7 @@ import {
   postPublicJson,
   uploadFiles,
   type MessageItem,
+  type AgentStep,
   type SessionItem,
   type UnsplashIntent,
   type UnsplashPhoto,
@@ -35,7 +36,31 @@ type ChatResponse = {
   trace_id?: string;
   user_message?: MessageItem;
   assistant_message?: MessageItem;
+  steps?: AgentStep[];
 };
+
+function predictedSteps(text: string, hasFiles: boolean): AgentStep[] {
+  const lowered = ` ${text.toLowerCase()} `;
+  const complex =
+    hasFiles ||
+    lowered.includes("compare") ||
+    lowered.includes("research") ||
+    lowered.includes("dosage") ||
+    lowered.includes("dose") ||
+    lowered.includes("safe") ||
+    lowered.includes("safety") ||
+    lowered.includes("side effect") ||
+    lowered.includes("interaction") ||
+    lowered.split(" and ").length > 2;
+  const steps: AgentStep[] = [
+    { key: "understand", label: "Reading your question" },
+    { key: "context", label: "Searching knowledge" },
+  ];
+  if (complex) steps.push({ key: "safety", label: "Checking safety" });
+  if (hasFiles) steps.push({ key: "compare", label: "Comparing sources" });
+  steps.push({ key: "answer", label: "Preparing answer" });
+  return steps;
+}
 
 function SignedOutPanel() {
   return (
@@ -71,6 +96,7 @@ function ChatApp() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [photosByMessageId, setPhotosByMessageId] = useState<Record<string, UnsplashPhoto[]>>({});
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
 
   const speak = useCallback((text: string) => {
     if (!voiceReplies || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -217,6 +243,7 @@ function ChatApp() {
     abortController?.abort();
     setAbortController(null);
     setIsTyping(false);
+    setAgentSteps([]);
   }, [abortController]);
 
   const handleSend = useCallback(async (text: string, files?: File[]) => {
@@ -224,6 +251,7 @@ function ChatApp() {
     if (!content || isTyping) return;
     setError("");
     setIsTyping(true);
+    setAgentSteps(predictedSteps(content, Boolean(files?.length)));
     const controller = new AbortController();
     setAbortController(controller);
     const optimisticId = `local-${Date.now()}`;
@@ -265,6 +293,7 @@ function ChatApp() {
           realAssistant,
         ]);
         speak(realAssistant.content);
+        if (response.steps?.length) setAgentSteps(response.steps);
         loadUnsplashForMessage(content, realAssistant);
       } else {
         await withFreshToken((freshToken) => loadMessages(sessionId, freshToken));
@@ -286,6 +315,7 @@ function ChatApp() {
     } finally {
       setIsTyping(false);
       setAbortController(null);
+      setAgentSteps([]);
     }
   }, [activeSessionId, isTyping, createSession, loadMessages, refreshSessions, speak, loadUnsplashForMessage, withFreshToken, friendlyError]);
 
@@ -326,7 +356,7 @@ function ChatApp() {
           deletingSessionId={deletingSessionId}
         />
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatMessages messages={messages} isTyping={isTyping} token={token} photosByMessageId={photosByMessageId} onSuggestionClick={handleSuggestionClick} />
+          <ChatMessages messages={messages} isTyping={isTyping} token={token} agentSteps={agentSteps} photosByMessageId={photosByMessageId} onSuggestionClick={handleSuggestionClick} />
           <ChatInput onSend={handleSend} onStop={handleStop} disabled={!isLoaded || !isSignedIn} isThinking={isTyping} />
         </div>
       </div>

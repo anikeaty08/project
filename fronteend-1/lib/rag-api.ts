@@ -55,6 +55,12 @@ export type UnsplashPhoto = {
   unsplash_url: string
 }
 
+export type AgentStep = {
+  key: string
+  label: string
+  status?: string
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || ""
 const AUTH_EXPIRED_MESSAGE = "Your sign-in session expired. Please refresh or sign in again."
 

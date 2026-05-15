@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { Leaf, Sparkles, MessageSquare, BookOpen, Heart, Search, Brain, ShieldCheck, Copy, Check } from "lucide-react";
-import { fetchAuthedBlob, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
+import { fetchAuthedBlob, type AgentStep, type MessageItem, type SourceItem, type UnsplashPhoto } from "@/lib/rag-api";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 
 export interface ChatMessage {
@@ -17,6 +17,7 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   isTyping: boolean;
   token: string;
+  agentSteps?: AgentStep[];
   photosByMessageId?: Record<string, UnsplashPhoto[]>;
   onSuggestionClick: (text: string) => void;
 }
@@ -38,11 +39,18 @@ const suggestions = [
   { icon: BookOpen, title: "Panchakarma explained", description: "Ancient detox therapy overview" },
 ];
 
-function TypingIndicator() {
-  const steps = [
-    { icon: Search, label: "Reading your message" },
-    { icon: Brain, label: "Retrieving herb context" },
-    { icon: ShieldCheck, label: "Composing answer" },
+function TypingIndicator({ agentSteps }: { agentSteps: AgentStep[] }) {
+  const iconForStep = (key: string) => {
+    if (key === "safety") return ShieldCheck;
+    if (key === "answer") return Sparkles;
+    if (key === "compare") return Brain;
+    if (key === "context") return Search;
+    return Brain;
+  };
+  const steps = agentSteps.length ? agentSteps : [
+    { key: "understand", label: "Reading your question" },
+    { key: "context", label: "Searching knowledge" },
+    { key: "answer", label: "Preparing answer" },
   ];
   return (
     <div className="flex items-start gap-3 msg-enter">
@@ -55,12 +63,14 @@ function TypingIndicator() {
           Vaidya is thinking
         </div>
         <div className="grid gap-2">
-          {steps.map((step) => (
-            <div key={step.label} className="flex items-center gap-2 text-xs text-muted-foreground">
-              <step.icon className="w-3.5 h-3.5 text-ayur-gold/70" />
+          {steps.map((step) => {
+            const StepIcon = iconForStep(step.key);
+            return (
+            <div key={step.key} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <StepIcon className="w-3.5 h-3.5 text-ayur-gold/70" />
               <span>{step.label}</span>
             </div>
-          ))}
+          )})}
         </div>
       </div>
     </div>
@@ -186,7 +196,7 @@ function MessageBubble({ message, token, photos }: { message: ChatMessage; token
   );
 }
 
-export function ChatMessages({ messages, isTyping, token, photosByMessageId = {}, onSuggestionClick }: ChatMessagesProps) {
+export function ChatMessages({ messages, isTyping, token, agentSteps = [], photosByMessageId = {}, onSuggestionClick }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -234,7 +244,7 @@ export function ChatMessages({ messages, isTyping, token, photosByMessageId = {}
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} token={token} photos={photosByMessageId[msg.id]} />
         ))}
-        {isTyping && <TypingIndicator />}
+        {isTyping && <TypingIndicator agentSteps={agentSteps} />}
         <div ref={bottomRef} />
       </div>
     </div>
