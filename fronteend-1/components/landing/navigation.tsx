@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 
@@ -12,8 +13,12 @@ const navLinks = [
 ];
 
 export function Navigation() {
+  const { isLoaded, isSignedIn } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const appHref = isLoaded && isSignedIn ? "/chat" : "/login";
+  const appLabel = isLoaded && isSignedIn ? "Dashboard" : "Sign in";
+  const appCta = isLoaded && isSignedIn ? "Go to Dashboard" : "Begin Journey";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -65,15 +70,15 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
-            <a href="/login" className={`transition-all duration-500 ${isScrolled ? "text-xs text-foreground/70 hover:text-foreground" : "text-sm text-white/70 hover:text-white"}`}>
-              Sign in
+            <a href={appHref} className={`transition-all duration-500 ${isScrolled ? "text-xs text-foreground/70 hover:text-foreground" : "text-sm text-white/70 hover:text-white"}`}>
+              {appLabel}
             </a>
-            <a href="/login">
+            <a href={appHref}>
               <Button
                 size="sm"
                 className={`rounded-full transition-all duration-500 ${isScrolled ? "bg-foreground hover:bg-foreground/90 text-background px-4 h-8 text-xs" : "bg-white hover:bg-white/90 text-black px-6"}`}
               >
-                Begin Journey
+                {appCta}
               </Button>
             </a>
           </div>
@@ -131,21 +136,21 @@ export function Navigation() {
           }`}
           style={{ transitionDelay: isMobileMenuOpen ? "300ms" : "0ms" }}
           >
-            <a href="/login" className="flex-1">
+            <a href={appHref} className="flex-1">
               <Button 
                 variant="outline" 
                 className="w-full rounded-full h-14 text-base"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                Sign in
+                {appLabel}
               </Button>
             </a>
-            <a href="/login" className="flex-1">
+            <a href={appHref} className="flex-1">
               <Button 
                 className="w-full bg-foreground text-background rounded-full h-14 text-base"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                Begin Journey
+                {appCta}
               </Button>
             </a>
           </div>

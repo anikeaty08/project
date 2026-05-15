@@ -78,6 +78,7 @@ def verify_clerk_token(token: str) -> AuthUser:
             "key": signing_key.key,
             "algorithms": ["RS256"],
             "options": options,
+            "leeway": max(0, settings.clerk_jwt_leeway_seconds),
         }
         if settings.clerk_issuer:
             kwargs["issuer"] = settings.clerk_issuer.rstrip("/")

@@ -19,7 +19,7 @@ export default function LoginPage() {
   if (!isLoaded || isSignedIn) {
     return (
       <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background px-6 text-sm text-muted-foreground">
-        Opening chat...
+        Dashboard loading...
       </div>
     );
   }

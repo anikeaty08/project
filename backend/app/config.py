@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     clerk_issuer: str = ""
     clerk_audience: str = ""
     clerk_jwks_url: str = ""
+    clerk_jwt_leeway_seconds: int = 120
 
     chromadb_upsert_batch_size: int = 4500
 

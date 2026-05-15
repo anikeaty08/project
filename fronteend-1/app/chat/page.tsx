@@ -54,7 +54,7 @@ function SignedOutPanel() {
 }
 
 function ChatApp() {
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const searchParams = useSearchParams();
   const herbParam = searchParams.get("herb");
   const herbSentRef = useRef(false);
@@ -80,11 +80,14 @@ function ChatApp() {
   }, [voiceReplies]);
 
   const loadToken = useCallback(async () => {
-    const clerkToken = await getToken();
+    if (!isLoaded || !isSignedIn) {
+      throw new Error("Sign in again to load your chat history.");
+    }
+    const clerkToken = await getToken({ skipCache: true });
     if (!clerkToken) throw new Error("Could not get Clerk session token");
     setToken(clerkToken);
     return clerkToken;
-  }, [getToken]);
+  }, [getToken, isLoaded, isSignedIn]);
 
   const refreshSessions = useCallback(async (authToken: string) => {
     const list = await getJson<SessionItem[]>("/sessions/", authToken);
@@ -107,7 +110,7 @@ function ChatApp() {
   }, [refreshSessions]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !isSignedIn) return;
     let cancelled = false;
     async function boot() {
       setError("");
@@ -129,7 +132,7 @@ function ChatApp() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, loadToken, refreshSessions, loadMessages, createSession]);
+  }, [isLoaded, isSignedIn, loadToken, refreshSessions, loadMessages, createSession]);
 
   const handleSelectSession = useCallback(async (id: string) => {
     setError("");
