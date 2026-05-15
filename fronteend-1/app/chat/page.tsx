@@ -263,6 +263,7 @@ function ChatApp() {
     const rows = await getJson<MessageItem[]>(`/sessions/${sessionId}/messages`, authToken);
     setMessages(rows.map(fromApiMessage));
     setPhotosByMessageId({});
+    setDoshaQuiz(null);
   }, []);
 
   const createSession = useCallback(async (authToken: string) => {
@@ -271,6 +272,7 @@ function ChatApp() {
     const created = await postJson<{ id: string }>("/sessions/", {}, authToken);
     setActiveSessionId(created.id);
     setMessages([]);
+    setDoshaQuiz(null);
     await refreshSessions(authToken);
     return created.id;
     })();
@@ -319,6 +321,7 @@ function ChatApp() {
 
   const handleNewChat = useCallback(async () => {
     setError("");
+    setDoshaQuiz(null);
     try {
       await withFreshToken((authToken) => createSession(authToken));
     } catch (exc) {
@@ -341,6 +344,7 @@ function ChatApp() {
         } else {
           setActiveSessionId(null);
           setMessages([]);
+          setDoshaQuiz(null);
         }
       }
     } catch (exc) {
@@ -612,7 +616,19 @@ function ChatApp() {
           deletingSessionId={deletingSessionId}
         />
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatMessages messages={messages} isTyping={isTyping} token={token} agentSteps={agentSteps} photosByMessageId={photosByMessageId} onSuggestionClick={handleSuggestionClick} />
+          <ChatMessages
+            messages={messages}
+            isTyping={isTyping}
+            token={token}
+            agentSteps={agentSteps}
+            photosByMessageId={photosByMessageId}
+            doshaQuiz={doshaQuiz}
+            onSuggestionClick={handleSuggestionClick}
+            onDoshaSelect={handleDoshaSelect}
+            onDoshaNext={handleDoshaNext}
+            onDoshaBack={handleDoshaBack}
+            onDoshaCancel={handleDoshaCancel}
+          />
           <ChatInput onSend={handleSend} onStop={handleStop} disabled={!isLoaded || !isSignedIn} isThinking={isTyping} />
         </div>
       </div>
