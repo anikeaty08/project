@@ -295,11 +295,11 @@ function ChatApp() {
 
   // Auto-send herb query when navigating from plant detail page
   useEffect(() => {
-    if (herbParam && token && !herbSentRef.current && !isTyping && messages.length === 0) {
+    if (herbParam && isLoaded && isSignedIn && !herbSentRef.current && !isTyping && messages.length === 0) {
       herbSentRef.current = true;
       handleSend(`Tell me everything about ${herbParam} — its history, appearance, benefits, uses, and precautions.`);
     }
-  }, [herbParam, token, isTyping, messages.length, handleSend]);
+  }, [herbParam, isLoaded, isSignedIn, isTyping, messages.length, handleSend]);
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -327,7 +327,7 @@ function ChatApp() {
         />
         <div className="flex-1 flex flex-col min-w-0">
           <ChatMessages messages={messages} isTyping={isTyping} token={token} photosByMessageId={photosByMessageId} onSuggestionClick={handleSuggestionClick} />
-          <ChatInput onSend={handleSend} onStop={handleStop} disabled={!token} isThinking={isTyping} />
+          <ChatInput onSend={handleSend} onStop={handleStop} disabled={!isLoaded || !isSignedIn} isThinking={isTyping} />
         </div>
       </div>
     </div>
