@@ -6,9 +6,11 @@ import dynamic from "next/dynamic";
 import { SignInButton, useAuth } from "@clerk/nextjs";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
-import { ChatMessages, fromApiMessage, type ChatMessage } from "@/components/chat/chat-messages";
+import { ChatMessages, fromApiMessage, type ChatMessage, type DoshaQuizState } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
 import herbImages from "@/lib/herb-images.json";
+import { calculateResults, doshaProfiles, quizQuestions, type Dosha } from "@/lib/prakriti-data";
+import { savePrakritiResult } from "@/lib/prakriti-api";
 import {
   ApiError,
   AUTH_EXPIRED_MESSAGE,
@@ -39,6 +41,78 @@ type ChatResponse = {
   assistant_message?: MessageItem;
   steps?: AgentStep[];
 };
+
+const CHAT_DOSHA_QUESTIONS = quizQuestions.slice(0, 12);
+
+function isDoshaAnalysisTrigger(text: string) {
+  const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
+  return (
+    normalized === "analyze my dosha" ||
+    normalized === "analyse my dosha" ||
+    normalized.includes("analyze my dosha") ||
+    normalized.includes("analyse my dosha") ||
+    normalized.includes("what is my dosha") ||
+    normalized.includes("find my dosha")
+  );
+}
+
+function doshaLabel(dosha: Dosha) {
+  return doshaProfiles[dosha].name;
+}
+
+function formatList(items: string[]) {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function buildDoshaAnalysisMessage(answers: Record<number, Dosha>, saved: boolean) {
+  const result = calculateResults(answers);
+  const primary = doshaProfiles[result.primary];
+  const secondary = doshaProfiles[result.secondary];
+  const herbs = primary.herbs.map((herb) => herb.charAt(0).toUpperCase() + herb.slice(1)).join(", ");
+  const saveLine = saved
+    ? "I saved this result to your Prakriti history."
+    : "I could not save this to your Prakriti history right now, but your analysis is ready here.";
+
+  return [
+    `## Your Dosha Analysis: ${result.prakritiName}`,
+    "",
+    `Based on your 12 MCQ answers, your current profile leans **${result.prakritiName}**.`,
+    "",
+    `- Vata: ${result.percentages.vata}%`,
+    `- Pitta: ${result.percentages.pitta}%`,
+    `- Kapha: ${result.percentages.kapha}%`,
+    `- Primary dosha: ${doshaLabel(result.primary)}`,
+    `- Secondary dosha: ${doshaLabel(result.secondary)}`,
+    "",
+    `### ${primary.name} Pattern`,
+    primary.description,
+    "",
+    result.isDual ? `Your result is close enough to read as a dual constitution, so also watch the **${secondary.name}** pattern: ${secondary.description}` : `Your secondary influence is **${secondary.name}**, so some traits from that dosha may show up too.`,
+    "",
+    "### Strengths",
+    formatList(primary.strengths),
+    "",
+    "### Watch-Outs",
+    formatList(primary.watchFor),
+    "",
+    "### Diet Guidance",
+    "**Favor:**",
+    formatList(primary.diet.favor),
+    "",
+    "**Reduce when imbalanced:**",
+    formatList(primary.diet.avoid),
+    "",
+    "### Lifestyle Guidance",
+    formatList(primary.lifestyle),
+    "",
+    "### Helpful Ayurvedic Herbs",
+    herbs,
+    "",
+    "Use herbs thoughtfully, especially if you are pregnant, managing a condition, or taking medication.",
+    "",
+    `_${saveLine} This is wellness guidance for self-understanding, not a medical diagnosis or treatment plan._`,
+  ].join("\n");
+}
 
 function predictedSteps(text: string, hasFiles: boolean): AgentStep[] {
   const lowered = ` ${text.toLowerCase()} `;
