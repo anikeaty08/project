@@ -392,7 +392,12 @@ function ChatApp() {
 
   const loadUnsplashForMessage = useCallback(async (userText: string, message: ChatMessage) => {
     try {
-      if (message.content.toLowerCase().startsWith("i can only help with ayurveda")) return;
+      const loweredMessage = message.content.toLowerCase();
+      if (
+        loweredMessage.startsWith("i can only help with ayurveda") ||
+        loweredMessage.startsWith("i am focused on ayurveda") ||
+        loweredMessage.includes("only help with ayurveda")
+      ) return;
       const localPhotos = localHerbPhotos(`${userText}\n${message.content}`);
       if (localPhotos.length) {
         setPhotosByMessageId((prev) => ({ ...prev, [message.id]: localPhotos }));
