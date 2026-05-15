@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import uuid
+import hashlib
 from typing import Any
 
 import chromadb
@@ -42,7 +42,15 @@ def upsert_chunks(
         chunk_docs = documents[start:end]
         chunk_meta = metadatas[start:end]
         chunk_emb = embeddings[start:end]
-        ids = [str(uuid.uuid4()) for _ in chunk_docs]
+        ids = [
+            hashlib.sha1(
+                f"{meta.get('source', '')}:{meta.get('chunk_index', '')}:{doc[:120]}".encode(
+                    "utf-8",
+                    errors="ignore",
+                )
+            ).hexdigest()
+            for doc, meta in zip(chunk_docs, chunk_meta, strict=False)
+        ]
         col.upsert(
             ids=ids, documents=chunk_docs, metadatas=chunk_meta, embeddings=chunk_emb
         )
