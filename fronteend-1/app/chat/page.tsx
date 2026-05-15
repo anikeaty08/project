@@ -129,6 +129,21 @@ function answersForHistory(quiz: DoshaQuizState) {
   );
 }
 
+function validDoshaQuestions(questions: unknown) {
+  if (!Array.isArray(questions)) return [];
+  return questions.filter((question) => {
+    if (!question || typeof question !== "object") return false;
+    const q = question as { id?: unknown; category?: unknown; question?: unknown; options?: unknown };
+    if (typeof q.id !== "number" || typeof q.category !== "string" || typeof q.question !== "string") return false;
+    if (!Array.isArray(q.options) || q.options.length !== 3) return false;
+    const doshas = new Set(q.options.map((option) => {
+      if (!option || typeof option !== "object") return "";
+      return String((option as { dosha?: unknown }).dosha || "");
+    }));
+    return doshas.has("vata") && doshas.has("pitta") && doshas.has("kapha");
+  });
+}
+
 function predictedSteps(text: string, hasFiles: boolean): AgentStep[] {
   const lowered = ` ${text.toLowerCase()} `;
   const complex =
