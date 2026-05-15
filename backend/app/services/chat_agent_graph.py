@@ -19,6 +19,7 @@ from app.services.chat_verification import ChatVerificationService
 from app.services.history_utils import messages_to_dicts, trim_messages_for_llm
 from app.services.observability import traced_stage
 from app.services.retrieval_service import RetrievalService
+from app.services.topic_guard import is_ayurveda_related, off_topic_response
 from app.services.upload_context import UploadContextService
 
 try:
@@ -75,6 +76,7 @@ class ChatGraphState(TypedDict, total=False):
     answer: str
     needs_verification: bool
     use_autonomous_loop: bool
+    off_topic: bool
     tool_steps: int
     steps: list[dict[str, str]]
 
@@ -100,6 +102,7 @@ class ChatAgentGraph:
         graph = StateGraph(ChatGraphState)
         graph.add_node("validate_session", self._validate_session)
         graph.add_node("save_user_message", self._save_user_message)
+        graph.add_node("refuse_off_topic", self._refuse_off_topic)
         graph.add_node("plan_context", self._plan_context)
         graph.add_node("fast_tools", self._fast_tools)
         graph.add_node("bounded_tool_loop", self._bounded_tool_loop)
@@ -108,7 +111,14 @@ class ChatAgentGraph:
 
         graph.set_entry_point("validate_session")
         graph.add_edge("validate_session", "save_user_message")
-        graph.add_edge("save_user_message", "plan_context")
+        graph.add_conditional_edges(
+            "save_user_message",
+            self._route_after_user_message,
+            {
+                "refuse": "refuse_off_topic",
+                "plan": "plan_context",
+            },
+        )
         graph.add_conditional_edges(
             "plan_context",
             self._route_after_plan,
@@ -119,6 +129,7 @@ class ChatAgentGraph:
         )
         graph.add_edge("fast_tools", "generate_answer")
         graph.add_edge("bounded_tool_loop", "generate_answer")
+        graph.add_edge("refuse_off_topic", "save_assistant_message")
         graph.add_edge("generate_answer", "save_assistant_message")
         graph.add_edge("save_assistant_message", END)
         return graph.compile()
@@ -126,9 +137,12 @@ class ChatAgentGraph:
     def _invoke_without_langgraph(self, state: ChatGraphState) -> ChatGraphState:
         state = self._validate_session(state)
         state = self._save_user_message(state)
-        state = self._plan_context(state)
-        state = self._bounded_tool_loop(state) if self._route_after_plan(state) == "loop" else self._fast_tools(state)
-        state = self._generate_answer(state)
+        if self._route_after_user_message(state) == "refuse":
+            state = self._refuse_off_topic(state)
+        else:
+            state = self._plan_context(state)
+            state = self._bounded_tool_loop(state) if self._route_after_plan(state) == "loop" else self._fast_tools(state)
+            state = self._generate_answer(state)
         return self._save_assistant_message(state)
 
     def _append_step(self, state: ChatGraphState, key: str, label: str) -> None:
@@ -178,6 +192,22 @@ class ChatAgentGraph:
             )
         state["user_row"] = user_row
         state["trimmed_messages"] = trimmed
+        state["off_topic"] = not is_ayurveda_related(
+            state["user_content"],
+            has_uploads=bool(state["uploads"]),
+        )
+        return state
+
+    def _route_after_user_message(self, state: ChatGraphState) -> str:
+        return "refuse" if state.get("off_topic") else "plan"
+
+    def _refuse_off_topic(self, state: ChatGraphState) -> ChatGraphState:
+        self._append_step(state, "scope", "Checking Ayurveda scope")
+        state["plan"] = RetrievalPlan(query=state["user_content"][:500], summary_delta="")
+        state["sources"] = []
+        state["context"] = ""
+        state["supplement"] = None
+        state["answer"] = off_topic_response()
         return state
 
     def _plan_context(self, state: ChatGraphState) -> ChatGraphState:
