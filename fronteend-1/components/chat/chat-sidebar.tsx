@@ -36,7 +36,7 @@ export function ChatSidebar({
 
   const grouped = useMemo(() => {
     const filtered = sessions.filter((s) =>
-      (s.title?.trim() || "Untitled chat").toLowerCase().includes(searchQuery.toLowerCase())
+      (s.title?.trim() || "New chat").toLowerCase().includes(searchQuery.toLowerCase())
     );
     return filtered.reduce<Record<string, SessionItem[]>>((acc, session) => {
       const group = groupForDate(session.updated_at || session.created_at);
@@ -70,7 +70,7 @@ export function ChatSidebar({
               <div key={session.id} className="group flex items-center gap-1">
                 <button onClick={() => onSelectSession(session.id)} className={`min-w-0 flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 ${activeSessionId === session.id ? "bg-white/[0.06] text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-white/[0.03]"}`}>
                   <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
-                  <span className="flex-1 text-sm truncate">{session.title?.trim() || "Untitled chat"}</span>
+                  <span className="flex-1 text-sm truncate">{session.title?.trim() || "New chat"}</span>
                 </button>
                 <button onClick={() => onDeleteSession(session.id)} className="w-8 h-8 rounded-md flex items-center justify-center text-red-400/60 hover:text-red-300 hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100" aria-label="Delete chat">
                   <Trash2 className="w-3.5 h-3.5" />

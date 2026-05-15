@@ -87,6 +87,7 @@ class SessionChatResponse(BaseModel):
     retrieval_query: str
     user_message_id: str
     assistant_message_id: str
+    session_title: str | None = None
     trace_id: str | None = None
     user_message: MessageItem | None = None
     assistant_message: MessageItem | None = None
@@ -98,7 +99,8 @@ def create_session(
     auth_user: AuthUser = Depends(require_clerk_user),
     db: Session = Depends(get_db),
 ):
-    s = ChatSession(title=body.title, clerk_user_id=auth_user.clerk_user_id)
+    title = (body.title or "").strip() or "New chat"
+    s = ChatSession(title=title, clerk_user_id=auth_user.clerk_user_id)
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -169,7 +171,11 @@ def get_messages(
     verify_session_user(sess, auth_user)
     stmt = (
         select(ChatMessage)
-        .where(ChatMessage.session_id == session_id)
+        .join(ChatSession, ChatMessage.session_id == ChatSession.id)
+        .where(
+            ChatMessage.session_id == session_id,
+            ChatSession.clerk_user_id == auth_user.clerk_user_id,
+        )
         .order_by(ChatMessage.created_at.asc())
     )
     rows = db.scalars(stmt).all()
@@ -324,6 +330,7 @@ def session_chat(
         retrieval_query=out["retrieval_query"],
         user_message_id=out["user_message_id"],
         assistant_message_id=out["assistant_message_id"],
+        session_title=out.get("session_title"),
         trace_id=out.get("trace_id"),
         user_message=MessageItem(**out["user_message"]),
         assistant_message=MessageItem(**out["assistant_message"]),

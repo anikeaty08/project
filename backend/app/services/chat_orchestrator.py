@@ -131,6 +131,7 @@ class ChatOrchestrator:
             "trace_id": trace_id,
             "user_message_id": str(user_row.id),
             "assistant_message_id": str(assistant_row.id),
+            "session_title": session.title,
             "user_message": message_to_response(user_row),
             "assistant_message": message_to_response(assistant_row),
         }

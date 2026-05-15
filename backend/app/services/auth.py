@@ -109,5 +109,7 @@ def require_clerk_user(
 
 def verify_session_user(session: ChatSession, user: AuthUser) -> None:
     owner = session.clerk_user_id
-    if owner and owner != user.clerk_user_id:
+    if not owner:
+        raise HTTPException(status_code=403, detail="Session is not linked to a Clerk user")
+    if owner != user.clerk_user_id:
         raise HTTPException(status_code=403, detail="Session does not belong to this user")

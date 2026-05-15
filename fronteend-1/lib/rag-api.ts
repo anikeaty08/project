@@ -1,6 +1,6 @@
 export type SessionItem = {
   id: string
-  title?: string | null
+  title: string
   created_at: string
   updated_at: string
 }

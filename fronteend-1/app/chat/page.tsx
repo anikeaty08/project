@@ -25,6 +25,7 @@ type ChatResponse = {
   answer: string;
   sources: unknown[];
   retrieval_query: string;
+  session_title?: string | null;
   trace_id?: string;
   user_message?: MessageItem;
   assistant_message?: MessageItem;
@@ -204,6 +205,11 @@ function ChatApp() {
       } else {
         await loadMessages(sessionId, authToken);
         speak(response.answer);
+      }
+      if (response.session_title) {
+        setSessions((prev) => prev.map((session) =>
+          session.id === sessionId ? { ...session, title: response.session_title || session.title } : session
+        ));
       }
       await refreshSessions(authToken);
     } catch (exc) {
