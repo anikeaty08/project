@@ -9,6 +9,20 @@ from app.llm.tasks import run_unsplash_intent_agent
 
 router = APIRouter(prefix="/unsplash", tags=["unsplash"])
 
+HERB_KEYWORDS = [
+    ("tulsi", "tulsi holy basil plant"),
+    ("holy basil", "tulsi holy basil plant"),
+    ("ashwagandha", "ashwagandha plant"),
+    ("brahmi", "brahmi herb plant"),
+    ("saffron", "saffron crocus flower"),
+    ("turmeric", "turmeric plant"),
+    ("haridra", "turmeric plant"),
+    ("aloe", "aloe vera plant"),
+    ("kumari", "aloe vera plant"),
+    ("guduchi", "guduchi giloy plant"),
+    ("giloy", "guduchi giloy plant"),
+]
+
 
 class UnsplashIntentRequest(BaseModel):
     text: str = Field(default="", max_length=8000)
@@ -39,6 +53,15 @@ def unsplash_intent(body: UnsplashIntentRequest):
     raw = (body.text or "").strip()[:4000]
     if not raw:
         return UnsplashIntentResponse(show_images=False, keyword="")
+    lower = raw.lower()
+    for needle, keyword in HERB_KEYWORDS:
+        if needle in lower:
+            return UnsplashIntentResponse(show_images=True, keyword=keyword)
+    if any(word in lower for word in ("plant", "herb", "flower", "leaf", "leaves", "tree", "root")):
+        words = [word for word in lower.replace("\n", " ").split() if word.isalpha()]
+        keyword = " ".join((words[:2] + ["plant"])[:3]).strip()
+        if keyword:
+            return UnsplashIntentResponse(show_images=True, keyword=keyword)
     try:
         out = run_unsplash_intent_agent(raw)
     except ValueError as e:
