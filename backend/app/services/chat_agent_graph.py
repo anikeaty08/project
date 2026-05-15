@@ -21,6 +21,7 @@ from app.services.observability import traced_stage
 from app.services.retrieval_service import RetrievalService
 from app.services.topic_guard import is_ayurveda_related, off_topic_response
 from app.services.upload_context import UploadContextService
+from app.services.prescription_upload_service import process_existing_upload
 
 try:
     from langgraph.graph import END, StateGraph
@@ -163,6 +164,7 @@ class ChatAgentGraph:
             if state.get("auth_user") is not None:
                 verify_session_user(session, state["auth_user"])
             uploads = self.repo.load_uploads(state["db"], session_id, state.get("upload_ids"))
+            uploads = self._ensure_uploads_ready(state["db"], uploads, state["user_content"])
         memory = get_memory_store()
         state["session"] = session
         state["uploads"] = uploads
@@ -170,6 +172,24 @@ class ChatAgentGraph:
         state["session_summary"] = memory.get_summary(session)
         self._append_step(state, "understand", "Reading your question")
         return state
+
+    def _ensure_uploads_ready(
+        self,
+        db: Session,
+        uploads: list[SessionUpload],
+        user_content: str,
+    ) -> list[SessionUpload]:
+        ready: list[SessionUpload] = []
+        for upload in uploads:
+            status = getattr(upload, "status", None) or "completed"
+            if status == "completed" and upload.parse_result_json:
+                ready.append(upload)
+                continue
+            if status == "failed":
+                ready.append(upload)
+                continue
+            ready.append(process_existing_upload(db, upload, user_content))
+        return ready
 
     def _save_user_message(self, state: ChatGraphState) -> ChatGraphState:
         trace_id = state["trace_id"]
