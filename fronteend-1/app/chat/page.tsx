@@ -8,6 +8,7 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatMessages, fromApiMessage, type ChatMessage } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
+import herbImages from "@/lib/herb-images.json";
 import {
   ApiError,
   AUTH_EXPIRED_MESSAGE,
@@ -60,6 +61,48 @@ function predictedSteps(text: string, hasFiles: boolean): AgentStep[] {
   if (hasFiles) steps.push({ key: "compare", label: "Comparing sources" });
   steps.push({ key: "answer", label: "Preparing answer" });
   return steps;
+}
+
+const herbImageMap = herbImages as Record<string, string[]>;
+const herbAliases: Array<[string, string]> = [
+  ["ashwagandha", "ashwagandha"],
+  ["ashvgandha", "ashwagandha"],
+  ["ashvagandha", "ashwagandha"],
+  ["aswagandha", "ashwagandha"],
+  ["ashwaganda", "ashwagandha"],
+  ["tulsi", "tulasi"],
+  ["tulasi", "tulasi"],
+  ["holy basil", "tulasi"],
+  ["turmeric", "turmeric"],
+  ["haldi", "turmeric"],
+  ["haridra", "haridra"],
+  ["neem", "neem"],
+  ["amla", "amalaki"],
+  ["amalaki", "amalaki"],
+  ["giloy", "guduchi"],
+  ["guduchi", "guduchi"],
+  ["brahmi", "brahmi"],
+  ["shatavari", "shatavari"],
+  ["triphala", "triphala"],
+  ["saffron", "saffron"],
+  ["kesar", "saffron"],
+];
+
+function localHerbPhotos(text: string): UnsplashPhoto[] {
+  const lowered = text.toLowerCase();
+  const match = herbAliases.find(([alias, key]) => lowered.includes(alias) && herbImageMap[key]?.length);
+  if (!match) return [];
+  const [, key] = match;
+  const label = key === "tulasi" ? "Tulsi" : key.charAt(0).toUpperCase() + key.slice(1);
+  return herbImageMap[key].slice(0, 3).map((url, index) => ({
+    id: `local-${key}-${index}`,
+    url,
+    thumb_url: url,
+    alt: `${label} herb image`,
+    photographer: "Vaidya AI herb library",
+    photographer_url: "",
+    unsplash_url: url,
+  }));
 }
 
 function SignedOutPanel() {
@@ -228,6 +271,12 @@ function ChatApp() {
 
   const loadUnsplashForMessage = useCallback(async (userText: string, message: ChatMessage) => {
     try {
+      if (message.content.toLowerCase().startsWith("i can only help with ayurveda")) return;
+      const localPhotos = localHerbPhotos(`${userText}\n${message.content}`);
+      if (localPhotos.length) {
+        setPhotosByMessageId((prev) => ({ ...prev, [message.id]: localPhotos }));
+        return;
+      }
       const intent = await postPublicJson<UnsplashIntent>("/unsplash/intent", { text: `${userText}\n\n${message.content}` });
       if (!intent.show_images || !intent.keyword) return;
       const photos = await postPublicJson<UnsplashPhoto[]>("/unsplash/search", { keyword: intent.keyword, per_page: 3 });
