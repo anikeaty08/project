@@ -70,11 +70,10 @@ def _normalize(parsed: PlantImageResult, filename: str) -> dict[str, Any]:
         str(item).strip() for item in (parsed.visual_evidence or []) if str(item).strip()
     ][:8]
     if not parsed.retrieval_query.strip():
-        parsed.retrieval_query = " ".join(
-            part
-            for part in (parsed.likely_name, parsed.botanical_name, filename)
-            if part.strip()
-        )[:500]
+        name_query = " ".join(
+            part for part in (parsed.likely_name, parsed.botanical_name) if part.strip()
+        )
+        parsed.retrieval_query = name_query[:500]
     parsed.provenance = "plant_vision"
     parsed.flat_text = _flatten_for_embedding(parsed)
     return parsed.model_dump()
