@@ -8,9 +8,9 @@ import React from "react";
  * numbered lists, bullet lists, headings (#, ##, ###),
  * [links](url), and horizontal rules (---).
  */
-export function MarkdownRenderer({ content }: { content: string }) {
+export function MarkdownRenderer({ content, citationBaseId }: { content: string; citationBaseId?: string }) {
   const blocks = parseBlocks(content);
-  return <div className="space-y-2">{blocks.map((b, i) => renderBlock(b, i))}</div>;
+  return <div className="space-y-2">{blocks.map((b, i) => renderBlock(b, i, citationBaseId))}</div>;
 }
 
 // --- Block types ---
@@ -102,17 +102,17 @@ function parseBlocks(raw: string): Block[] {
   return blocks;
 }
 
-function renderBlock(block: Block, key: number): React.ReactNode {
+function renderBlock(block: Block, key: number, citationBaseId?: string): React.ReactNode {
   switch (block.type) {
     case "hr":
       return <div key={key} className="border-t border-border/30 my-3" />;
 
     case "heading":
       if (block.level === 1)
-        return <h3 key={key} className="text-base font-semibold text-foreground mt-1">{renderInline(block.text)}</h3>;
+        return <h3 key={key} className="text-base font-semibold text-foreground mt-1">{renderInline(block.text, citationBaseId)}</h3>;
       if (block.level === 2)
-        return <h4 key={key} className="text-sm font-semibold text-foreground mt-1">{renderInline(block.text)}</h4>;
-      return <h5 key={key} className="text-sm font-medium text-foreground/90 mt-1">{renderInline(block.text)}</h5>;
+        return <h4 key={key} className="text-sm font-semibold text-foreground mt-1">{renderInline(block.text, citationBaseId)}</h4>;
+      return <h5 key={key} className="text-sm font-medium text-foreground/90 mt-1">{renderInline(block.text, citationBaseId)}</h5>;
 
     case "code":
       return (
@@ -132,18 +132,18 @@ function renderBlock(block: Block, key: number): React.ReactNode {
               ) : (
                 <span className="w-1.5 h-1.5 rounded-full bg-ayur-gold/60 mt-2 flex-shrink-0" />
               )}
-              <span>{renderInline(item)}</span>
+              <span>{renderInline(item, citationBaseId)}</span>
             </li>
           ))}
         </ListTag>
       );
 
     case "paragraph":
-      return <p key={key} className="text-sm leading-relaxed">{renderInline(block.text)}</p>;
+      return <p key={key} className="text-sm leading-relaxed">{renderInline(block.text, citationBaseId)}</p>;
   }
 }
 
-function renderInline(text: string): React.ReactNode {
+function renderInline(text: string, citationBaseId?: string): React.ReactNode {
   // Process inline markdown: **bold**, *italic*, `code`, [link](url), and citation [1]
   const parts: React.ReactNode[] = [];
   let remaining = text;
@@ -153,7 +153,7 @@ function renderInline(text: string): React.ReactNode {
     // Bold: **text**
     let match = remaining.match(/^(.*?)\*\*(.+?)\*\*(.*)/s);
     if (match) {
-      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1])}</React.Fragment>);
+      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1], citationBaseId)}</React.Fragment>);
       parts.push(<strong key={key++} className="font-semibold text-foreground">{match[2]}</strong>);
       remaining = match[3];
       continue;
@@ -162,7 +162,7 @@ function renderInline(text: string): React.ReactNode {
     // Italic: *text*
     match = remaining.match(/^(.*?)\*(.+?)\*(.*)/s);
     if (match) {
-      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1])}</React.Fragment>);
+      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1], citationBaseId)}</React.Fragment>);
       parts.push(<em key={key++} className="italic text-foreground/80">{match[2]}</em>);
       remaining = match[3];
       continue;
@@ -171,7 +171,7 @@ function renderInline(text: string): React.ReactNode {
     // Inline code: `text`
     match = remaining.match(/^(.*?)`(.+?)`(.*)/s);
     if (match) {
-      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1])}</React.Fragment>);
+      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1], citationBaseId)}</React.Fragment>);
       parts.push(<code key={key++} className="px-1.5 py-0.5 rounded bg-white/[0.06] text-xs font-mono text-ayur-gold">{match[2]}</code>);
       remaining = match[3];
       continue;
@@ -180,7 +180,7 @@ function renderInline(text: string): React.ReactNode {
     // Link: [text](url)
     match = remaining.match(/^(.*?)\[(.+?)\]\((.+?)\)(.*)/s);
     if (match) {
-      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1])}</React.Fragment>);
+      if (match[1]) parts.push(<React.Fragment key={key++}>{processBasic(match[1], citationBaseId)}</React.Fragment>);
       parts.push(
         <a key={key++} href={match[3]} target="_blank" rel="noreferrer" className="text-ayur-gold underline underline-offset-2 hover:text-ayur-amber transition-colors">
           {match[2]}
@@ -191,7 +191,7 @@ function renderInline(text: string): React.ReactNode {
     }
 
     // No more inline patterns
-    parts.push(<React.Fragment key={key++}>{processBasic(remaining)}</React.Fragment>);
+    parts.push(<React.Fragment key={key++}>{processBasic(remaining, citationBaseId)}</React.Fragment>);
     break;
   }
 
@@ -199,7 +199,7 @@ function renderInline(text: string): React.ReactNode {
 }
 
 // Handle citation markers like [1], [2] etc. and emoji
-function processBasic(text: string): React.ReactNode {
+function processBasic(text: string, citationBaseId?: string): React.ReactNode {
   // Replace citation markers [1], [2] with styled badges
   const citationRegex = /\[(\d+)\]/g;
   const segments = text.split(citationRegex);
@@ -209,10 +209,20 @@ function processBasic(text: string): React.ReactNode {
   return segments.map((seg, i) => {
     // Odd indices are captured groups (citation numbers)
     if (i % 2 === 1) {
-      return (
-        <span key={i} className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-ayur-gold/20 text-ayur-gold text-[9px] font-mono mx-0.5 align-text-top">
+      const badge = (
+        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-ayur-gold/20 text-ayur-gold text-[9px] font-mono mx-0.5 align-text-top">
           {seg}
         </span>
+      );
+      if (citationBaseId) {
+        return (
+          <a key={i} href={`#${citationBaseId}-${seg}`} className="inline-block hover:scale-110 transition-transform" aria-label={`Jump to source ${seg}`}>
+            {badge}
+          </a>
+        );
+      }
+      return (
+        <React.Fragment key={i}>{badge}</React.Fragment>
       );
     }
     return seg;
